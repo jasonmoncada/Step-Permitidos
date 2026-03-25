@@ -10,19 +10,17 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        :root { --primary: #d4af37; --bg: #0f0f0f; --surface: #1e1e1e; --success: #2e7d32; --error: #ff4444; --text-sec: #888; }
+        :root { --primary: #d4af37; --bg: #0f0f0f; --surface: #1e1e1e; --success: #2e7d32; --error: #ff4444; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; margin: 0; padding-bottom: 80px; }
         .header { background: var(--surface); padding: 15px; text-align: center; border-bottom: 2px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
         .header h1 { margin: 0; color: var(--primary); font-size: 1rem; letter-spacing: 2px; text-transform: uppercase; flex: 1; }
         .nav { display: flex; background: var(--surface); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #333; }
-        .nav-btn { flex: 1; padding: 15px; border: none; background: none; color: var(--text-sec); font-weight: bold; font-size: 0.75rem; }
+        .nav-btn { flex: 1; padding: 15px; border: none; background: none; color: #888; font-weight: bold; font-size: 0.75rem; }
         .nav-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
         .search-container { padding: 10px; background: #151515; }
-        .card { background: var(--surface); padding: 15px; margin: 10px; border-radius: 8px; border-left: 4px solid var(--primary); position: relative; transition: transform 0.1s; }
-        .card:active { transform: scale(0.98); }
+        .card { background: var(--surface); padding: 15px; margin: 10px; border-radius: 8px; border-left: 4px solid var(--primary); position: relative; }
         .size-tag { background: #333; padding: 5px 10px; border-radius: 4px; font-size: 0.75rem; margin-right: 5px; border: 1px solid #444; display: inline-block; margin-top: 5px; }
-        .btn-main { width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; text-transform: uppercase; display: flex; justify-content: center; align-items: center; gap: 10px; cursor: pointer; }
-        .btn-main:disabled { opacity: 0.7; cursor: not-allowed; }
+        .btn-main { width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; text-transform: uppercase; display: flex; justify-content: center; align-items: center; gap: 10px; }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 1000; padding: 20px; overflow-y: auto; }
         input, select { width: 100%; padding: 12px; margin-top: 5px; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
         .spinner { width: 20px; height: 20px; border: 3px solid rgba(0,0,0,0.1); border-top: 3px solid black; border-radius: 50%; animation: spin 0.8s linear infinite; }
@@ -31,9 +29,14 @@
     </style>
 </head>
 <body>
-    <div id="root"></div>
+    <div id="root">
+        <div style="display:flex; justify-content:center; align-items:center; height:100vh; color:#d4af37;">
+            Cargando sistema...
+        </div>
+    </div>
 
     <script type="text/babel">
+        // Configuración de Firebase
         const firebaseConfig = {
           apiKey: "AIzaSyD0ndSzE5JvgsvVdcUJa9S9yR3X_VvY8-Y",
           authDomain: "permitidos-step.firebaseapp.com",
@@ -43,7 +46,15 @@
           appId: "1:790890287189:web:f4dcac6e46765790a98075"
         };
 
-        firebase.initializeApp(firebaseConfig);
+        // Inicialización segura
+        try {
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+        } catch (e) {
+            console.error("Error inicializando Firebase:", e);
+        }
+
         const db = firebase.firestore();
         const { useState, useEffect } = React;
 
@@ -62,9 +73,12 @@
             const [sizesInput, setSizesInput] = useState([{ size: '', qty: '' }]);
 
             useEffect(() => {
-                db.collection("inventory").onSnapshot(s => setInventory(s.docs.map(d => ({id: d.id, ...d.data()}))));
-                db.collection("malls").onSnapshot(s => setMalls(s.docs.map(d => ({id: d.id, ...d.data()}))));
-                db.collection("permitidos").onSnapshot(s => setPermitidos(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                // Escuchas en tiempo real
+                const unsubInv = db.collection("inventory").onSnapshot(s => setInventory(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                const unsubMalls = db.collection("malls").onSnapshot(s => setMalls(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                const unsubPerm = db.collection("permitidos").onSnapshot(s => setPermitidos(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                
+                return () => { unsubInv(); unsubMalls(); unsubPerm(); };
             }, []);
 
             const handleSaveProduct = async (e) => {
@@ -81,7 +95,7 @@
                     });
                     setShowInvForm(false);
                     setSizesInput([{size:'', qty:''}]);
-                } catch (err) { console.error(err); }
+                } catch (err) { alert("Error al guardar"); }
                 setLoading(false);
             };
 
@@ -94,7 +108,7 @@
                 try {
                     await db.collection("inventory").doc(editProduct.id).update({ sizes: sMap });
                     setEditProduct(null);
-                } catch (err) { console.error(err); }
+                } catch (err) { alert("Error al actualizar"); }
                 setLoading(false);
             };
 
@@ -115,13 +129,13 @@
                     newS[sz] -= q;
                     await db.collection("inventory").doc(p.id).update({ sizes: newS });
                     setShowAddPermitido(false);
-                } catch (err) { console.error(err); }
+                } catch (err) { alert("Error en la entrega"); }
                 setLoading(false);
             };
 
             const filteredInventory = inventory.filter(p => 
-                p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                p.color.toLowerCase().includes(searchTerm.toLowerCase())
+                (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                (p.color || '').toLowerCase().includes(searchTerm.toLowerCase())
             );
 
             return (
@@ -152,12 +166,12 @@
                                 {filteredInventory.map(p => (
                                     <div key={p.id} className="card" onClick={() => {
                                         setEditProduct(p);
-                                        setSizesInput(Object.entries(p.sizes).map(([size, qty]) => ({ size, qty })));
+                                        setSizesInput(Object.entries(p.sizes || {}).map(([size, qty]) => ({ size, qty })));
                                     }}>
-                                        <b>{p.name}</b> <span style={{float:'right', color:'var(--primary)'}}>${p.sellPrice.toLocaleString()}</span><br/>
+                                        <b>{p.name}</b> <span style={{float:'right', color:'var(--primary)'}}>${(p.sellPrice || 0).toLocaleString()}</span><br/>
                                         <small>{p.color}</small>
                                         <div style={{marginTop:10}}>
-                                            {Object.entries(p.sizes).map(([sz, q]) => (
+                                            {Object.entries(p.sizes || {}).map(([sz, q]) => (
                                                 <span key={sz} className="size-tag">{sz}: {q}</span>
                                             ))}
                                         </div>
@@ -180,7 +194,7 @@
                                         {items.map(p => (
                                             <div key={p.id} style={{marginTop:15, borderTop:'1px solid #333', paddingTop:10}}>
                                                 <b>{p.local}</b> - {p.name} ({p.size})<br/>
-                                                <small>{p.color} | ${p.sellPrice.toLocaleString()}</small>
+                                                <small>{p.color} | ${(p.sellPrice || 0).toLocaleString()}</small>
                                                 <div style={{display:'flex', gap:10, marginTop:10}}>
                                                     <button className="btn-main" style={{background:'var(--success)', color:'white', marginTop:0, padding:10}} onClick={() => db.collection("permitidos").doc(p.id).delete()}>VENDIDO</button>
                                                     <button className="btn-main" style={{background:'#444', color:'white', marginTop:0, padding:10}} onClick={() => db.collection("permitidos").doc(p.id).delete()}>DEVOLVER</button>
@@ -198,7 +212,7 @@
                     {/* MODAL EDITAR STOCK */}
                     {editProduct && (
                         <div className="modal">
-                            <h2>Editar Stock: {editProduct.name}</h2>
+                            <h2>Stock: {editProduct.name}</h2>
                             <form onSubmit={handleUpdateStock}>
                                 {sizesInput.map((s, i) => (
                                     <div key={i} style={{display:'flex', gap:5, marginTop:5}}>
@@ -221,11 +235,10 @@
                         <div className="modal">
                             <h2>Nuevo Producto</h2>
                             <form onSubmit={handleSaveProduct}>
-                                <input name="n" placeholder="Nombre del Calzado" required />
+                                <input name="n" placeholder="Nombre" required />
                                 <input name="c" placeholder="Color" required />
                                 <input name="bp" type="number" placeholder="Precio Costo" required />
                                 <input name="sp" type="number" placeholder="Precio Venta" required />
-                                <label>Tallas Iniciales:</label>
                                 {sizesInput.map((s, i) => (
                                     <div key={i} style={{display:'flex', gap:5, marginTop:5}}>
                                         <input placeholder="Talla" value={s.size} onChange={e => { const n = [...sizesInput]; n[i].size = e.target.value.toUpperCase(); setSizesInput(n); }} />
@@ -234,19 +247,19 @@
                                 ))}
                                 <button type="button" onClick={() => setSizesInput([...sizesInput, {size:'', qty:''}])} className="btn-main" style={{background:'none', border:'1px dashed var(--primary)', color:'var(--primary)'}}>+ Otra Talla</button>
                                 <button type="submit" className="btn-main" disabled={loading}>
-                                    {loading ? <div className="spinner"></div> : 'CREAR PRODUCTO'}
+                                    {loading ? <div className="spinner"></div> : 'CREAR'}
                                 </button>
                                 <button type="button" className="btn-main" style={{background:'#444'}} onClick={() => setShowInvForm(false)}>CANCELAR</button>
                             </form>
                         </div>
                     )}
 
-                    {/* MODAL SALIDA A LOCAL */}
+                    {/* MODAL ENTREGA */}
                     {showAddPermitido && (
                         <div className="modal">
                             <h2>Registrar Salida</h2>
                             <form onSubmit={handleDeliver}>
-                                <label>Centro Comercial:</label>
+                                <label>CC:</label>
                                 <select name="m" required>
                                     {malls.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                                 </select>
@@ -254,8 +267,8 @@
                                 <label>Producto:</label>
                                 <select name="pId" required onChange={(e) => {
                                     const p = inventory.find(i => i.id === e.target.value);
-                                    window.tempSz = p ? Object.keys(p.sizes) : [];
-                                    setTab('locales'); setTab('locales'); // Forzar render
+                                    window.tempSz = p ? Object.keys(p.sizes || {}) : [];
+                                    setTab('locales'); setTab('locales'); 
                                 }}>
                                     <option value="">Seleccione...</option>
                                     {inventory.map(i => <option key={i.id} value={i.id}>{i.name} ({i.color})</option>)}
@@ -271,17 +284,20 @@
                         </div>
                     )}
 
-                    {/* GESTIÓN CC */}
+                    {/* CONFIG CC */}
                     {showMallMgmt && (
                         <div className="modal">
                             <h2>Configuración CC</h2>
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
                                 setLoading(true);
-                                await db.collection("malls").add({ name: e.target.m.value.toUpperCase() });
-                                setLoading(false); e.target.reset();
+                                try {
+                                    await db.collection("malls").add({ name: e.target.m.value.toUpperCase() });
+                                    e.target.reset();
+                                } catch(err) { alert("Error"); }
+                                setLoading(false);
                             }}>
-                                <input name="m" placeholder="Nombre (Ej: VENTURA)" required />
+                                <input name="m" placeholder="Nombre CC" required />
                                 <button type="submit" className="btn-main" disabled={loading}>
                                     {loading ? <div className="spinner"></div> : 'AGREGAR'}
                                 </button>
@@ -289,10 +305,5 @@
                             <div style={{marginTop:20}}>
                                 {malls.map(m => (
                                     <div key={m.id} style={{padding:15, background:'#222', marginBottom:5, borderRadius:8, display:'flex', justifyContent:'space-between'}}>
-                                        <span>{m.name}</span>
-                                        <button onClick={() => db.collection("malls").doc(m.id).delete()} style={{color:'var(--error)', background:'none', border:'none'}}>Eliminar</button>
-                                    </div>
-                                ))}
-                            </div>
-                            <button className="btn-main" style={{background:'#444'}} onClick={() => setShowMallMgmt(false)}>CERRAR</button>
-            
+
+                                    
