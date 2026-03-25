@@ -3,25 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Monka Pro v3</title>
+    <title>Monka Pro v4</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <style>
         :root { --primary: #d4af37; --bg: #0f0f0f; --surface: #1e1e1e; --success: #2e7d32; --error: #ff4444; --text: #ffffff; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding-bottom: 90px; overflow-x: hidden; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding-bottom: 90px; }
         .header { background: var(--surface); padding: 15px; text-align: center; border-bottom: 2px solid var(--primary); position: sticky; top: 0; z-index: 100; }
         .nav { display: flex; background: var(--surface); position: sticky; top: 54px; z-index: 100; border-bottom: 1px solid #333; }
         .nav-btn { flex: 1; padding: 15px; border: none; background: none; color: #888; font-weight: bold; font-size: 0.7rem; text-transform: uppercase; }
         .nav-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
-        .card { background: var(--surface); padding: 15px; margin: 10px; border-radius: 8px; border-left: 4px solid var(--primary); transition: 0.2s; }
+        .card { background: var(--surface); padding: 15px; margin: 10px; border-radius: 8px; border-left: 4px solid var(--primary); }
         .card:active { transform: scale(0.98); background: #252525; }
         .btn-main { width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; text-transform: uppercase; cursor: pointer; }
         .btn-main:active { opacity: 0.7; transform: translateY(2px); }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 1000; padding: 20px; overflow-y: auto; display: none; }
         input, select { width: 100%; padding: 12px; margin: 8px 0; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
         .fab { position: fixed; bottom: 25px; right: 25px; width: 60px; height: 60px; border-radius: 30px; background: var(--primary); border: none; font-size: 30px; color: black; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 99; font-weight: bold; }
-        .price-tag { color: var(--primary); font-weight: bold; }
-        .cost-tag { color: #888; font-size: 0.8rem; text-decoration: underline; }
+        .ref-badge { background: #333; color: var(--primary); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; border: 1px solid var(--primary); }
     </style>
 </head>
 <body>
@@ -39,7 +38,7 @@
     <div id="tab-locales" style="padding:10px;"></div>
 
     <div id="tab-bodega" style="display:none; padding:10px;">
-        <input type="text" id="search-box" placeholder="🔍 Buscar por nombre o color..." oninput="renderInventory()" style="margin-bottom:10px;">
+        <input type="text" id="search-box" placeholder="🔍 Buscar nombre, color o REF..." oninput="renderInventory()" style="margin-bottom:10px;">
         <button class="btn-main" onclick="openProductModal()">+ NUEVO PRODUCTO</button>
         <div id="inventory-list"></div>
     </div>
@@ -53,7 +52,8 @@
 
     <div id="modal-p" class="modal">
         <h2 id="p-title" style="color:var(--primary)">Producto</h2>
-        <input type="text" id="p-nombre" placeholder="Nombre (Ej: Jordan Retro)">
+        <input type="text" id="p-ref" placeholder="Referencia (REF)">
+        <input type="text" id="p-nombre" placeholder="Nombre">
         <input type="text" id="p-color" placeholder="Color">
         <div style="display:flex; gap:10px;">
             <input type="number" id="p-costo" placeholder="P. Compra">
@@ -61,7 +61,7 @@
         </div>
         <div id="p-sizes-area"></div>
         <button class="btn-main" style="background:#333; color:var(--primary); border:1px solid var(--primary)" onclick="addSizeRow()">+ AÑADIR TALLA</button>
-        <button id="p-save-btn" class="btn-main" onclick="saveToFirebase()">GUARDAR EN NUBE</button>
+        <button id="p-save-btn" class="btn-main" onclick="saveToFirebase()">GUARDAR</button>
         <button id="p-delete-btn" class="btn-main" style="background:var(--error); display:none;" onclick="deleteProduct()">ELIMINAR PRODUCTO</button>
         <button class="btn-main" style="background:#444;" onclick="closeModal('modal-p')">CANCELAR</button>
     </div>
@@ -89,17 +89,8 @@
         const db = firebase.firestore();
         let inventory = [], permitidos = [], editingId = null;
 
-        // Carga de Datos
-        db.collection("inventory").onSnapshot(s => {
-            inventory = s.docs.map(d => ({id: d.id, ...d.data()}));
-            renderInventory();
-        });
-
-        db.collection("permitidos").orderBy("timestamp", "desc").onSnapshot(s => {
-            permitidos = s.docs.map(d => ({id: d.id, ...d.data()}));
-            renderLocales();
-            renderHistorial();
-        });
+        db.collection("inventory").onSnapshot(s => { inventory = s.docs.map(d => ({id: d.id, ...d.data()})); renderInventory(); });
+        db.collection("permitidos").orderBy("timestamp", "desc").onSnapshot(s => { permitidos = s.docs.map(d => ({id: d.id, ...d.data()})); renderLocales(); renderHistorial(); });
 
         function showTab(t) {
             ['locales', 'bodega', 'historial'].forEach(id => {
@@ -124,13 +115,13 @@
             editingId = id;
             const p = inventory.find(x => x.id === id);
             document.getElementById('p-title').innerText = id ? "Editar Producto" : "Nuevo Producto";
+            document.getElementById('p-ref').value = id ? (p.ref || "") : "";
             document.getElementById('p-nombre').value = id ? p.name : "";
             document.getElementById('p-color').value = id ? p.color : "";
             document.getElementById('p-costo').value = id ? p.costPrice : "";
             document.getElementById('p-venta').value = id ? p.sellPrice : "";
             document.getElementById('p-sizes-area').innerHTML = "";
             document.getElementById('p-delete-btn').style.display = id ? "block" : "none";
-            
             if(id && p.sizes) Object.entries(p.sizes).forEach(([s, q]) => addSizeRow(s, q));
             else addSizeRow();
             openModal('modal-p');
@@ -139,7 +130,6 @@
         async function saveToFirebase() {
             const btn = document.getElementById('p-save-btn');
             btn.innerText = "GUARDANDO..."; btn.disabled = true;
-
             const sizes = {};
             document.querySelectorAll('#p-sizes-area div').forEach(row => {
                 const s = row.querySelector('.in-sz').value.toUpperCase();
@@ -148,6 +138,7 @@
             });
 
             const data = {
+                ref: document.getElementById('p-ref').value.toUpperCase(),
                 name: document.getElementById('p-nombre').value.toUpperCase(),
                 color: document.getElementById('p-color').value.toUpperCase(),
                 costPrice: Number(document.getElementById('p-costo').value),
@@ -158,22 +149,26 @@
             if(editingId) await db.collection("inventory").doc(editingId).update(data);
             else await db.collection("inventory").add(data);
 
-            btn.innerText = "GUARDAR EN NUBE"; btn.disabled = false;
-            closeModal('modal-p');
+            btn.innerText = "GUARDAR"; btn.disabled = false;
+            closeModal('modal-p'); // AUTO-CIERRE
+            showTab('bodega'); // VOLVER A BODEGA
         }
 
         function renderInventory() {
             const search = document.getElementById('search-box').value.toLowerCase();
             const list = document.getElementById('inventory-list');
-            list.innerHTML = inventory.filter(p => p.name.toLowerCase().includes(search) || p.color.toLowerCase().includes(search)).map(p => `
+            list.innerHTML = inventory.filter(p => 
+                p.name.toLowerCase().includes(search) || 
+                p.color.toLowerCase().includes(search) || 
+                (p.ref && p.ref.toLowerCase().includes(search))
+            ).map(p => `
                 <div class="card" onclick="openProductModal('${p.id}')">
                     <div style="display:flex; justify-content:space-between">
                         <b>${p.name}</b>
-                        <span class="price-tag">$${(p.sellPrice || 0).toLocaleString()}</span>
+                        <span class="ref-badge">REF: ${p.ref || '---'}</span>
                     </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center">
-                        <small>${p.color}</small>
-                        <span class="cost-tag">Costo: $${(p.costPrice || 0).toLocaleString()}</span>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px">
+                        <small>${p.color} | $${(p.sellPrice || 0).toLocaleString()}</small>
                     </div>
                     <div style="margin-top:8px">
                         ${Object.entries(p.sizes || {}).map(([s,q]) => `<span style="font-size:10px; background:#333; padding:2px 6px; border-radius:4px; margin-right:4px">${s}: ${q}</span>`).join('')}
@@ -185,38 +180,45 @@
         function openSalidaModal() {
             const select = document.getElementById('s-prod');
             select.innerHTML = '<option value="">Elegir producto...</option>' + 
-                inventory.map(p => `<option value="${p.id}">${p.name} (${p.color})</option>`).join('');
+                inventory.map(p => `<option value="${p.id}">${p.name} [${p.ref || 'S/R'}]</option>`).join('');
             openModal('modal-s');
         }
 
         function loadSalidaSizes() {
             const p = inventory.find(x => x.id === document.getElementById('s-prod').value);
-            document.getElementById('s-size').innerHTML = p ? 
-                Object.keys(p.sizes).map(s => `<option value="${s}">${s}</option>`).join('') : '';
+            document.getElementById('s-size').innerHTML = p ? Object.keys(p.sizes).map(s => `<option value="${s}">${s}</option>`).join('') : '';
         }
 
         async function executeSalida() {
+            const btn = document.getElementById('s-save-btn');
+            btn.innerText = "REGISTRANDO..."; btn.disabled = true;
             const pId = document.getElementById('s-prod').value;
             const p = inventory.find(x => x.id === pId);
             const sz = document.getElementById('s-size').value;
-            const loc = document.getElementById('s-local').value.toUpperCase();
 
             await db.collection("permitidos").add({
-                local: loc, name: p.name, size: sz, timestamp: Date.now(), date: new Date().toLocaleString()
+                local: document.getElementById('s-local').value.toUpperCase(),
+                name: p.name, ref: p.ref || "", size: sz, timestamp: Date.now(), date: new Date().toLocaleString()
             });
 
             const newSizes = {...p.sizes}; newSizes[sz] -= 1;
             await db.collection("inventory").doc(pId).update({ sizes: newSizes });
-            closeModal('modal-s');
+
+            btn.innerText = "REGISTRAR ENTREGA"; btn.disabled = false;
+            closeModal('modal-s'); // AUTO-CIERRE
+            showTab('locales'); // VOLVER A LOCALES
         }
 
         function renderLocales() {
             const cont = document.getElementById('tab-locales');
             cont.innerHTML = permitidos.map(p => `
                 <div class="card" style="border-left-color: var(--success)">
-                    <b>${p.local}</b><br>
+                    <div style="display:flex; justify-content:space-between">
+                        <b>${p.local}</b>
+                        <small style="color:var(--primary)">${p.ref}</small>
+                    </div>
                     <span>${p.name} (Talla: ${p.size})</span>
-                    <button class="btn-main" style="background:var(--success); padding:8px; font-size:10px;" onclick="db.collection('permitidos').doc('${p.id}').delete()">MARCAR VENDIDO</button>
+                    <button class="btn-main" style="background:var(--success); padding:8px; font-size:10px;" onclick="db.collection('permitidos').doc('${p.id}').delete()">MARCAR VENDIDO / QUITAR</button>
                 </div>
             `).join('');
         }
@@ -225,7 +227,7 @@
             document.getElementById('historial-list').innerHTML = permitidos.slice(0, 15).map(p => `
                 <div style="padding:10px; border-bottom:1px solid #333; font-size:12px">
                     <span style="color:var(--primary)">${p.date}</span><br>
-                    Salida a <b>${p.local}</b>: ${p.name} [Talla ${p.size}]
+                    REF: ${p.ref} | Salida a <b>${p.local}</b>: ${p.name} [Talla ${p.size}]
                 </div>
             `).join('');
         }
