@@ -1,70 +1,63 @@
-// --- NUEVA LÓGICA PARA GESTIÓN DE VENTAS Y DEVOLUCIONES ---
+<!DOCTYPE html><html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monka Pro</title>
+<style>
+body{margin:0;font-family:sans-serif;background:#0f0f0f;color:#fff}
+header{display:flex;justify-content:space-between;align-items:center;padding:10px;background:#111;border-bottom:1px solid #d4af37}
+nav button{background:none;border:none;color:#d4af37;padding:10px}
+nav button:active{opacity:.5}
+.section{display:none;padding:10px}
+.active{display:block}
+.card{background:#1a1a1a;margin:8px 0;padding:10px;border-radius:10px}
+input,select,button{padding:8px;margin:4px 0;border-radius:6px;border:none}
+button{background:#d4af37;color:#000}
+button:active{transform:scale(.95)}
+.fab{position:fixed;bottom:20px;right:20px;background:#d4af37;color:#000;border-radius:50%;width:50px;height:50px;font-size:24px}
+</style>
+</head>
+<body>
+<header>
+<div>Monka Pro</div>
+<nav>
+<button onclick="show('locales')">Locales</button>
+<button onclick="show('bodega')">Bodega</button>
+<button onclick="show('reportes')">Reportes</button>
+</nav>
+<button onclick="openSettings()">⚙️</button>
+</header><div id="locales" class="section active"></div>
+<div id="bodega" class="section"></div>
+<div id="reportes" class="section"></div><button class="fab" onclick="openSalida()">+</button>
 
-function renderLocales() {
-    const cont = document.getElementById('tab-locales');
-    if (permitidos.length === 0) {
-        cont.innerHTML = `<p style="text-align:center; color:#666; margin-top:20px;">No hay productos en locales actualmente.</p>`;
-        return;
-    }
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    cont.innerHTML = permitidos.map(p => `
-        <div class="card" style="border-left-color: var(--primary)">
-            <div style="display:flex; justify-content:space-between">
-                <b>${p.local}</b>
-                <span class="ref-badge">REF: ${p.ref || 'S/R'}</span>
-            </div>
-            <div style="margin: 10px 0;">
-                <span style="font-size: 1.1rem;">${p.name}</span><br>
-                <small>Talla: <b style="color:var(--primary)">${p.size}</b></small>
-            </div>
-            
-            <div style="display:flex; gap:10px;">
-                <button class="btn-main" style="background:var(--success); margin-top:0; flex:1;" 
-                    onclick="registrarVenta('${p.id}')">VENDIDO $</button>
-                
-                <button class="btn-main" style="background:var(--error); margin-top:0; flex:1;" 
-                    onclick="devolverABodega('${p.id}', '${p.name}', '${p.size}')">DEVOLVER</button>
-            </div>
-        </div>
-    `).join('');
+const firebaseConfig = {
+ apiKey: "AIzaSyD0ndSzE5JvgsvVdcUJa9S9yR3X_VvY8-Y",
+ authDomain: "permitidos-step.firebaseapp.com",
+ projectId: "permitidos-step",
+ storageBucket: "permitidos-step.firebasestorage.app",
+ messagingSenderId: "790890287189",
+ appId: "1:790890287189:web:f4dcac6e46765790a98075"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+window.show = (id)=>{
+document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+document.getElementById(id).classList.add('active');
+loadAll();
 }
 
-// Acción 1: El producto se vendió (Solo se borra del local)
-async function registrarVenta(id) {
-    if(confirm("¿Confirmar venta? Se quitará de la lista del local.")) {
-        await db.collection("permitidos").doc(id).delete();
-        // El sistema se actualiza solo por el onSnapshot
-    }
+async function loadAll(){
+loadBodega();
+loadLocales();
+loadReportes();
 }
 
-// Acción 2: El producto regresa a la bodega (Suma +1 al inventario)
-async function devolverABodega(id, nombre, talla) {
-    if(confirm(`¿Reingresar ${nombre} (Talla ${talla}) a la bodega?`)) {
-        try {
-            // 1. Buscar el producto original en el inventario por nombre o referencia
-            const snap = await db.collection("inventory").where("name", "==", nombre).get();
-            
-            if(!snap.empty) {
-                const prodDoc = snap.docs[0];
-                const pData = prodDoc.data();
-                const nuevasTallas = {...pData.sizes};
-                
-                // Sumar 1 a la talla correspondiente
-                nuevasTallas[talla] = (nuevasTallas[talla] || 0) + 1;
-                
-                // 2. Actualizar bodega
-                await db.collection("inventory").doc(prodDoc.id).update({ sizes: nuevasTallas });
-                
-                // 3. Borrar de la lista de locales
-                await db.collection("permitidos").doc(id).delete();
-                
-                alert("Producto reingresado a bodega con éxito.");
-            } else {
-                alert("Error: No se encontró el producto original en bodega para devolverlo.");
-            }
-        } catch (e) {
-            console.error(e);
-            alert("Error al procesar la devolución.");
-        }
-    }
-}
+async function loadBodega(){
+const cont = document.getElementById('bodega');
+cont.innerHTML = `<h3>Bodega</h
