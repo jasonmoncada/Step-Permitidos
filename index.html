@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Permitidos Monka - Gestión de Tallas</title>
+    <title>Permitidos Monka - Control Total</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     
@@ -11,26 +11,30 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        :root { --primary: #d4af37; --bg: #0f0f0f; --surface: #1e1e1e; --success: #2e7d32; --error: #c62828; --info: #0288d1; }
+        :root { --primary: #d4af37; --bg: #0f0f0f; --surface: #1e1e1e; --success: #2e7d32; --error: #ff4444; --info: #0288d1; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; margin: 0; padding-bottom: 80px; }
         .header { background: var(--surface); padding: 15px; text-align: center; border-bottom: 2px solid var(--primary); }
-        .header h1 { margin: 0; color: var(--primary); font-size: 1.2rem; letter-spacing: 2px; text-transform: uppercase; }
+        .header h1 { margin: 0; color: var(--primary); font-size: 1.1rem; letter-spacing: 2px; text-transform: uppercase; }
         .nav { display: flex; background: var(--surface); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #333; }
         .nav-btn { flex: 1; padding: 12px; border: none; background: none; color: #888; font-weight: bold; font-size: 0.7rem; }
         .nav-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
-        .mall-group { margin: 10px; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
-        .mall-header { background: #252525; padding: 10px; font-weight: bold; color: var(--primary); display: flex; justify-content: space-between; font-size: 0.9rem; }
-        .permitido-card { background: var(--surface); padding: 12px; border-bottom: 1px solid #333; }
         .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 8px; background: #000; }
-        .stat-box { text-align: center; font-size: 0.65rem; padding: 5px; border-radius: 5px; background: #111; }
-        .fab { position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px; border-radius: 28px; background: var(--primary); border: none; font-size: 24px; z-index: 100; color: black; font-weight: bold;}
+        .stat-box { text-align: center; font-size: 0.6rem; padding: 5px; border-radius: 5px; background: #111; }
+        .stat-val { display: block; font-size: 0.8rem; font-weight: bold; margin-top: 2px; }
+        .mall-group { margin: 10px; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
+        .mall-header { background: #252525; padding: 10px; font-weight: bold; color: var(--primary); font-size: 0.85rem; }
+        .permitido-card { background: var(--surface); padding: 12px; border-bottom: 1px solid #333; }
+        .size-tag { background: #333; padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; border: 1px solid #444; display: inline-block; margin-top: 5px; }
+        .low-stock { color: var(--error); border-color: var(--error); font-weight: bold; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .filter-bar { display: flex; gap: 5px; overflow-x: auto; padding: 10px; background: #151515; }
+        .filter-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid #444; background: #222; color: #aaa; font-size: 0.65rem; white-space: nowrap; }
+        .filter-btn.active { background: var(--primary); color: black; border-color: var(--primary); }
+        .fab { position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px; border-radius: 28px; background: var(--primary); border: none; font-size: 24px; z-index: 100; color: black; }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; padding: 20px; overflow-y: auto; }
-        label { display: block; margin-top: 12px; color: var(--primary); font-size: 0.8rem; font-weight: bold; }
         input, select { width: 100%; padding: 12px; margin-top: 5px; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 8px; box-sizing: border-box; }
         .btn-main { width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; text-transform: uppercase; }
         .btn-status { flex: 1; padding: 10px; border: none; border-radius: 6px; color: white; font-weight: bold; margin: 5px; font-size: 0.7rem; }
-        .size-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px; }
-        .size-tag { background: #333; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; border: 1px solid var(--primary); }
     </style>
 </head>
 <body>
@@ -48,108 +52,77 @@
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-
         const { useState, useEffect } = React;
+
+        const fCurrency = (val) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(val);
 
         function App() {
             const [tab, setTab] = useState('permitidos');
-            const [showAdd, setShowAdd] = useState(false);
-            const [showInvForm, setShowInvForm] = useState(false);
             const [inventory, setInventory] = useState([]);
             const [permitidos, setPermitidos] = useState([]);
             const [history, setHistory] = useState([]);
-            const [malls, setMalls] = useState(["OITI", "GRAN SAM", "IMPERIO", "MINITIENDAS"]);
-            const [loading, setLoading] = useState(true);
+            const [malls] = useState(["OITI", "GRAN SAM", "IMPERIO", "MINITIENDAS"]);
+            const [filterMall, setFilterMall] = useState('TODOS');
+            const [showInvForm, setShowInvForm] = useState(false);
+            const [showAdd, setShowAdd] = useState(false);
             const [sizesInput, setSizesInput] = useState([{ size: '', qty: '' }]);
 
             useEffect(() => {
-                const unsubInv = db.collection("inventory").onSnapshot(snap => {
-                    setInventory(snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
-                });
-                const unsubPerm = db.collection("permitidos").onSnapshot(snap => {
-                    setPermitidos(snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
-                });
-                const unsubHist = db.collection("history").orderBy("closedAt", "desc").limit(50).onSnapshot(snap => {
-                    setHistory(snap.docs.map(d => d.data()));
-                    setLoading(false);
-                });
-                return () => { unsubInv(); unsubPerm(); unsubHist(); };
+                db.collection("inventory").onSnapshot(s => setInventory(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                db.collection("permitidos").onSnapshot(s => setPermitidos(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                db.collection("history").orderBy("closedAt", "desc").limit(50).onSnapshot(s => setHistory(s.docs.map(d => d.data())));
             }, []);
 
             const addProduct = async (e) => {
                 e.preventDefault();
                 const f = e.target;
-                const finalSizes = {};
-                sizesInput.forEach(s => { if(s.size) finalSizes[s.size.toUpperCase()] = parseInt(s.qty) || 0; });
-
+                const sMap = {};
+                sizesInput.forEach(s => { if(s.size) sMap[s.size.toUpperCase()] = parseInt(s.qty) || 0; });
                 await db.collection("inventory").add({
-                    name: f.prodName.value.toUpperCase(),
-                    ref: f.ref.value.toUpperCase(),
-                    color: f.color.value.toUpperCase(),
-                    buyPrice: parseFloat(f.buyPrice.value),
-                    sellPrice: parseFloat(f.sellPrice.value),
-                    sizes: finalSizes
+                    name: f.n.value.toUpperCase(), ref: f.r.value.toUpperCase(), color: f.c.value.toUpperCase(),
+                    buyPrice: parseFloat(f.bp.value), sellPrice: parseFloat(f.sp.value), sizes: sMap
                 });
-                setShowInvForm(false);
-                setSizesInput([{ size: '', qty: '' }]);
-                f.reset();
+                setShowInvForm(false); setSizesInput([{size:'', qty:''}]); f.reset();
             };
 
             const deliverProduct = async (e) => {
                 e.preventDefault();
                 const f = e.target;
-                const qty = parseInt(f.qty.value);
-                const size = f.size.value;
-                const prod = inventory.find(p => p.id === f.prodId.value);
-                
+                const p = inventory.find(i => i.id === f.pId.value);
+                const q = parseInt(f.q.value);
+                const sz = f.sz.value;
                 await db.collection("permitidos").add({
-                    mall: f.mall.value, local: f.local.value, 
-                    name: prod.name, ref: prod.ref, color: prod.color, size,
-                    qty, sellPrice: prod.sellPrice, buyPrice: prod.buyPrice,
-                    date: new Date().toLocaleDateString()
+                    mall: f.m.value, local: f.l.value, name: p.name, ref: p.ref, color: p.color, size: sz,
+                    qty: q, sellPrice: p.sellPrice, buyPrice: p.buyPrice, date: new Date().toLocaleDateString()
                 });
-
-                const newSizes = { ...prod.sizes };
-                newSizes[size] = (newSizes[size] || 0) - qty;
-                await db.collection("inventory").doc(prod.id).update({ sizes: newSizes });
+                const newS = {...p.sizes}; newS[sz] -= q;
+                await db.collection("inventory").doc(p.id).update({ sizes: newS });
                 setShowAdd(false);
             };
 
             const resolveStatus = async (item, status) => {
                 if (status === 'sold') {
-                    const profit = (item.sellPrice - item.buyPrice) * item.qty;
-                    await db.collection("history").add({
-                        ...item, status: 'sold', profit, closedAt: new Date().toLocaleString()
-                    });
+                    await db.collection("history").add({ ...item, status: 'sold', profit: (item.sellPrice - item.buyPrice) * item.qty, closedAt: new Date().toLocaleString() });
                 } else {
-                    const prod = inventory.find(p => p.ref === item.ref && p.color === item.color);
-                    if(prod) {
-                        const newSizes = { ...prod.sizes };
-                        newSizes[item.size] = (newSizes[item.size] || 0) + item.qty;
-                        await db.collection("inventory").doc(prod.id).update({ sizes: newSizes });
-                    }
+                    const p = inventory.find(x => x.ref === item.ref && x.color === item.color);
+                    if(p) { const nS = {...p.sizes}; nS[item.size] = (nS[item.size] || 0) + item.qty; await db.collection("inventory").doc(p.id).update({ sizes: nS }); }
                 }
                 await db.collection("permitidos").doc(item.id).delete();
             };
 
-            const sendWhatsApp = (h) => {
-                const text = `*VENTA - PERMITIDOS MONKA*%0A📍 CC: ${h.mall}%0A🏠 Local: ${h.local}%0A📦: ${h.name}%0A🎨: ${h.color}%0A📏 Talla: ${h.size}%0A💵: $${h.sellPrice.toLocaleString()}`;
-                window.open(`https://wa.me/?text=${text}`, '_blank');
-            };
-
-            if(loading) return <div style={{padding:20, textAlign:'center'}}>Cargando Permitidos Monka...</div>;
+            const historyFiltered = filterMall === 'TODOS' ? history : history.filter(h => h.mall === filterMall);
 
             return (
                 <div>
                     <div className="header"><h1>PERMITIDOS MONKA ☁️</h1></div>
                     <div className="nav">
-                        <button className={`nav-btn ${tab === 'permitidos' ? 'active' : ''}`} onClick={() => setTab('permitidos')}>EN LOCALES</button>
+                        <button className={`nav-btn ${tab === 'permitidos' ? 'active' : ''}`} onClick={() => setTab('permitidos')}>LOCALES</button>
                         <button className={`nav-btn ${tab === 'inventario' ? 'active' : ''}`} onClick={() => setTab('inventario')}>BODEGA</button>
                         <button className={`nav-btn ${tab === 'cierre' ? 'active' : ''}`} onClick={() => setTab('cierre')}>HISTORIAL</button>
                     </div>
 
                     {tab === 'permitidos' && (
-                        <div style={{paddingTop:10}}>
+                        <div>
                             {malls.map(m => {
                                 const items = permitidos.filter(p => p.mall === m);
                                 if(items.length === 0) return null;
@@ -158,11 +131,10 @@
                                         <div className="mall-header">📍 {m}</div>
                                         {items.map(p => (
                                             <div key={p.id} className="permitido-card">
-                                                <b>{p.local}</b> - <span style={{color: 'var(--primary)'}}>{p.name} ({p.color})</span><br/>
-                                                <small>Talla: <b>{p.size}</b> | Cant: {p.qty}</small>
+                                                <b>{p.local}</b> - <span style={{color:'var(--primary)'}}>{p.name} ({p.size})</span>
                                                 <div style={{display:'flex', marginTop:10}}>
-                                                    <button className="btn-status" style={{background: 'var(--success)'}} onClick={() => resolveStatus(p, 'sold')}>VENDIDO</button>
-                                                    <button className="btn-status" style={{background: 'var(--error)'}} onClick={() => resolveStatus(p, 'returned')}>DEVOLUCIÓN</button>
+                                                    <button className="btn-status" style={{background:'var(--success)'}} onClick={() => resolveStatus(p, 'sold')}>VENDIDO</button>
+                                                    <button className="btn-status" style={{background:'var(--error)'}} onClick={() => resolveStatus(p, 'returned')}>DEVUELTO</button>
                                                 </div>
                                             </div>
                                         ))}
@@ -174,17 +146,14 @@
 
                     {tab === 'inventario' && (
                         <div style={{padding:10}}>
-                            <button className="btn-main" onClick={() => setShowInvForm(true)}>+ NUEVO PRODUCTO</button>
+                            <button className="btn-main" onClick={() => setShowInvForm(true)}>+ AGREGAR PRODUCTO</button>
                             {inventory.map(p => (
-                                <div key={p.id} style={{background: 'var(--surface)', padding:15, margin:'10px 0', borderRadius:8}}>
-                                    <div style={{display:'flex', justifyContent:'space-between'}}>
-                                        <b>{p.name}</b>
-                                        <span style={{color: 'var(--primary)'}}>${p.sellPrice.toLocaleString()}</span>
-                                    </div>
-                                    <small>{p.color} | {p.ref}</small><br/>
-                                    <div style={{marginTop: 8}}>
+                                <div key={p.id} style={{background: 'var(--surface)', padding:15, margin:'10px 0', borderRadius:8, borderLeft:'4px solid var(--primary)'}}>
+                                    <div style={{display:'flex', justifyContent:'space-between'}}><b>{p.name}</b> <span>{fCurrency(p.sellPrice)}</span></div>
+                                    <small>{p.color} | Ref: {p.ref}</small>
+                                    <div style={{marginTop:8}}>
                                         {Object.entries(p.sizes).map(([s, q]) => (
-                                            <span key={s} className="size-tag">{s}: <b>{q}</b></span>
+                                            <span key={s} className={`size-tag ${q <= 2 ? 'low-stock' : ''}`}>{s}: {q}</span>
                                         ))}
                                     </div>
                                 </div>
@@ -193,14 +162,22 @@
                     )}
 
                     {tab === 'cierre' && (
-                        <div style={{padding:15}}>
-                            {history.map((h, i) => (
-                                <div key={i} style={{background: '#222', padding: '12px', marginBottom: '10px', borderRadius: '8px', borderLeft: '4px solid #25d366'}}>
-                                    <small>{h.closedAt}</small><br/>
-                                    <strong>{h.name} ({h.color}) - Talla {h.size}</strong> en {h.mall}<br/>
-                                    <button className="btn-status" style={{background:'#25d366', marginTop:5, width:'auto'}} onClick={() => sendWhatsApp(h)}>WHATSAPP</button>
-                                </div>
-                            ))}
+                        <div>
+                            <div className="filter-bar">
+                                <button className={`filter-btn ${filterMall === 'TODOS' ? 'active' : ''}`} onClick={() => setFilterMall('TODOS')}>TODOS</button>
+                                {malls.map(m => (
+                                    <button key={m} className={`filter-btn ${filterMall === m ? 'active' : ''}`} onClick={() => setFilterMall(m)}>{m}</button>
+                                ))}
+                            </div>
+                            <div style={{padding:10}}>
+                                {historyFiltered.map((h, i) => (
+                                    <div key={i} style={{background:'#222', padding:12, marginBottom:10, borderRadius:8, borderLeft:'4px solid #25d366'}}>
+                                        <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.6rem', color:'#aaa'}}><span>{h.closedAt}</span><span>+{fCurrency(h.profit)}</span></div>
+                                        <div style={{fontSize:'0.85rem', margin:'4px 0'}}><strong>{h.name}</strong> ({h.size}) en {h.mall}</div>
+                                        <button className="btn-status" style={{background:'#25d366', marginTop:5, width:'100%'}} onClick={() => window.open(`https://wa.me/?text=*REPORTE MONKA*%0A📍 ${h.mall}%0A📦 ${h.name}%0A📏 Talla: ${h.size}%0A💵 ${fCurrency(h.sellPrice)}`, '_blank')}>WHATSAPP</button>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
 
@@ -210,23 +187,19 @@
                         <div className="modal">
                             <h3>Registrar Salida</h3>
                             <form onSubmit={deliverProduct}>
-                                <label>CC:</label>
-                                <select name="mall">{malls.map(m => <option key={m} value={m}>{m}</option>)}</select>
-                                <label>Local:</label><input name="local" required />
+                                <label>CC:</label><select name="m">{malls.map(m => <option key={m} value={m}>{m}</option>)}</select>
+                                <label>Local:</label><input name="l" required />
                                 <label>Producto:</label>
-                                <select name="prodId" onChange={(e) => {
+                                <select name="pId" required onChange={(e) => {
                                     const p = inventory.find(i => i.id === e.target.value);
-                                    window.currentSizes = p ? Object.keys(p.sizes).filter(s => p.sizes[s] > 0) : [];
-                                    setTab(tab); // Hack para refrescar
+                                    window.szs = p ? Object.keys(p.sizes).filter(s => p.sizes[s] > 0) : [];
+                                    setTab(tab); 
                                 }}>
                                     <option value="">Seleccione...</option>
                                     {inventory.map(i => <option key={i.id} value={i.id}>{i.name} - {i.color}</option>)}
                                 </select>
-                                <label>Talla:</label>
-                                <select name="size">
-                                    {(window.currentSizes || []).map(s => <option key={s} value={s}>{s}</option>)}
-                                </select>
-                                <label>Cantidad:</label><input name="qty" type="number" defaultValue="1" required />
+                                <label>Talla:</label><select name="sz">{(window.szs || []).map(s => <option key={s} value={s}>{s}</option>)}</select>
+                                <label>Cantidad:</label><input name="q" type="number" defaultValue="1" required />
                                 <button type="submit" className="btn-main">ENTREGAR</button>
                                 <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowAdd(false)}>CERRAR</button>
                             </form>
@@ -237,29 +210,21 @@
                         <div className="modal">
                             <h3>Nuevo Producto</h3>
                             <form onSubmit={addProduct}>
-                                <label>Nombre:</label><input name="prodName" required />
-                                <label>Ref:</label><input name="ref" required />
-                                <label>Color:</label><input name="color" required />
-                                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
-                                    <div><label>Costo:</label><input name="buyPrice" type="number" required /></div>
-                                    <div><label>Venta:</label><input name="sellPrice" type="number" required /></div>
-                                </div>
-                                
-                                <label>Stock por Tallas:</label>
+                                <label>Nombre:</label><input name="n" required />
+                                <label>Ref:</label><input name="r" required />
+                                <label>Color:</label><input name="c" required />
+                                <label>Costo COP:</label><input name="bp" type="number" required />
+                                <label>Venta COP:</label><input name="sp" type="number" required />
+                                <label>Tallas:</label>
                                 {sizesInput.map((s, i) => (
-                                    <div key={i} className="size-row">
-                                        <input placeholder="Talla (S, 38...)" value={s.size} onChange={e => {
-                                            const newS = [...sizesInput]; newS[i].size = e.target.value; setSizesInput(newS);
-                                        }} />
-                                        <input placeholder="Cant" type="number" value={s.qty} onChange={e => {
-                                            const newS = [...sizesInput]; newS[i].qty = e.target.value; setSizesInput(newS);
-                                        }} />
+                                    <div key={i} style={{display:'flex', gap:5, marginBottom:5}}>
+                                        <input placeholder="Talla" value={s.size} onChange={e => { const n = [...sizesInput]; n[i].size = e.target.value; setSizesInput(n); }} />
+                                        <input placeholder="Cant" type="number" value={s.qty} onChange={e => { const n = [...sizesInput]; n[i].qty = e.target.value; setSizesInput(n); }} />
                                     </div>
                                 ))}
-                                <button type="button" onClick={() => setSizesInput([...sizesInput, {size:'', qty:''}])} style={{background:'none', color:'var(--primary)', border:'1px dashed var(--primary)', padding:10, width:'100%', borderRadius:8}}>+ Añadir otra talla</button>
-                                
-                                <button type="submit" className="btn-main">GUARDAR TODO</button>
-                                <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowInvForm(false)}>CANCELAR</button>
+                                <button type="button" onClick={() => setSizesInput([...sizesInput, {size:'', qty:''}])} style={{background:'none', color:'var(--primary)', border:'1px dashed #d4af37', padding:10, width:'100%', borderRadius:8}}>+ Añadir talla</button>
+                                <button type="submit" className="btn-main">GUARDAR</button>
+                                <button type="button" className="btn-main" style={{background:'#444', marginTop:10}} onClick={()=>setShowInvForm(false)}>CANCELAR</button>
                             </form>
                         </div>
                     )}
