@@ -6,270 +6,316 @@
     <title>Monka Pro</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         :root { --primary: #d4af37; --bg: #0f0f0f; --surface: #1e1e1e; --success: #2e7d32; --error: #ff4444; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; margin: 0; padding-bottom: 80px; }
-        .header { background: var(--surface); padding: 15px; text-align: center; border-bottom: 2px solid var(--primary); display: flex; justify-content: space-between; align-items: center; }
-        .header h1 { margin: 0; color: var(--primary); font-size: 1rem; letter-spacing: 2px; text-transform: uppercase; flex: 1; }
-        .nav { display: flex; background: var(--surface); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #333; }
-        .nav-btn { flex: 1; padding: 15px; border: none; background: none; color: #888; font-weight: bold; font-size: 0.75rem; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; margin: 0; padding-bottom: 80px; overflow-x: hidden; }
+        .header { background: var(--surface); padding: 15px; text-align: center; border-bottom: 2px solid var(--primary); display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; }
+        .header h1 { margin: 0; color: var(--primary); font-size: 1rem; letter-spacing: 2px; text-transform: uppercase; }
+        .nav { display: flex; background: var(--surface); position: sticky; top: 54px; z-index: 100; border-bottom: 1px solid #333; }
+        .nav-btn { flex: 1; padding: 15px; border: none; background: none; color: #888; font-weight: bold; font-size: 0.75rem; text-transform: uppercase; }
         .nav-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
         .search-container { padding: 10px; background: #151515; }
-        .card { background: var(--surface); padding: 15px; margin: 10px; border-radius: 8px; border-left: 4px solid var(--primary); }
+        .card { background: var(--surface); padding: 15px; margin: 10px; border-radius: 8px; border-left: 4px solid var(--primary); position: relative; }
         .size-tag { background: #333; padding: 5px 10px; border-radius: 4px; font-size: 0.75rem; margin-right: 5px; border: 1px solid #444; display: inline-block; margin-top: 5px; }
-        .btn-main { width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; text-transform: uppercase; display: flex; justify-content: center; align-items: center; gap: 10px; }
-        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 1000; padding: 20px; overflow-y: auto; }
-        input, select { width: 100%; padding: 12px; margin-top: 5px; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
-        .spinner { width: 20px; height: 20px; border: 3px solid rgba(0,0,0,0.1); border-top: 3px solid black; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        .btn-main { width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; text-transform: uppercase; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; font-size: 0.9rem; }
+        .btn-main:active { transform: scale(0.98); opacity: 0.9; }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 1000; padding: 20px; overflow-y: auto; display: none; }
+        input, select { width: 100%; padding: 12px; margin-top: 5px; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 8px; font-size: 16px; box-sizing: border-box; margin-bottom: 10px; }
+        .spinner { width: 20px; height: 20px; border: 3px solid rgba(0,0,0,0.1); border-top: 3px solid black; border-radius: 50%; animation: spin 0.8s linear infinite; display: none; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .fab { position: fixed; bottom: 25px; right: 25px; width: 60px; height: 60px; border-radius: 30px; background: var(--primary); border: none; font-size: 28px; color: black; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 99; }
+        .fab { position: fixed; bottom: 25px; right: 25px; width: 60px; height: 60px; border-radius: 30px; background: var(--primary); border: none; font-size: 28px; color: black; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 99; font-weight: bold; }
+        #loading-screen { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 2000; }
     </style>
 </head>
 <body>
-    <div id="root"></div>
 
-    <script type="text/babel">
+    <div id="loading-screen">
+        <div style="width: 40px; height: 40px; border: 4px solid #333; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+        <p style="color: var(--primary); margin-top: 15px; letter-spacing: 1px;">CARGANDO MONKA PRO...</p>
+    </div>
+
+    <div class="header">
+        <div style="width: 40px;"></div>
+        <h1>MONKA PRO ☁️</h1>
+        <button onclick="openModal('modal-malls')" style="background:none; border:none; font-size:1.5rem; color:var(--primary);">⚙️</button>
+    </div>
+
+    <div class="nav">
+        <button id="btn-locales" class="nav-btn active" onclick="showTab('locales')">LOCALES</button>
+        <button id="btn-bodega" class="nav-btn" onclick="showTab('bodega')">BODEGA</button>
+    </div>
+
+    <div id="tab-bodega" style="display: none;">
+        <div class="search-container">
+            <input type="text" id="search-input" placeholder="🔍 Buscar producto o color..." oninput="renderInventory()">
+        </div>
+        <div style="padding: 10px;">
+            <button class="btn-main" onclick="openModal('modal-producto')">+ NUEVO PRODUCTO</button>
+            <div id="inventory-list"></div>
+        </div>
+    </div>
+
+    <div id="tab-locales">
+        <div id="malls-list" style="padding: 10px;"></div>
+    </div>
+
+    <button class="fab" onclick="openModal('modal-salida')">+</button>
+
+    <div id="modal-producto" class="modal">
+        <h2>Nuevo Producto</h2>
+        <input type="text" id="p-nombre" placeholder="Nombre (Ej: Jordan Retro)">
+        <input type="text" id="p-color" placeholder="Color">
+        <input type="number" id="p-costo" placeholder="Precio Costo">
+        <input type="number" id="p-venta" placeholder="Precio Venta">
+        <div id="p-sizes-container">
+            <div style="display: flex; gap: 5px;">
+                <input type="text" placeholder="Talla" class="size-n">
+                <input type="number" placeholder="Cant" class="size-q">
+            </div>
+        </div>
+        <button class="btn-main" style="background:none; border:1px dashed var(--primary); color:var(--primary);" onclick="addSizeField('p-sizes-container')">+ Añadir Talla</button>
+        <button class="btn-main" id="btn-save-p" onclick="saveProduct()">
+            <div class="spinner" id="spin-p"></div> <span id="txt-p">GUARDAR PRODUCTO</span>
+        </button>
+        <button class="btn-main" style="background:#444;" onclick="closeModal('modal-producto')">CANCELAR</button>
+    </div>
+
+    <div id="modal-edit-stock" class="modal">
+        <h2 id="edit-title">Editar Stock</h2>
+        <div id="edit-sizes-container"></div>
+        <button class="btn-main" style="background:none; border:1px dashed var(--primary); color:var(--primary);" onclick="addSizeField('edit-sizes-container')">+ Añadir Talla</button>
+        <button class="btn-main" id="btn-update-s" onclick="updateStock()">
+            <div class="spinner" id="spin-s"></div> <span id="txt-s">ACTUALIZAR STOCK</span>
+        </button>
+        <button class="btn-main" style="background:#444;" onclick="closeModal('modal-edit-stock')">CANCELAR</button>
+    </div>
+
+    <div id="modal-malls" class="modal">
+        <h2>Centros Comerciales</h2>
+        <input type="text" id="new-mall-name" placeholder="Nombre del CC">
+        <button class="btn-main" onclick="saveMall()">AGREGAR CC</button>
+        <div id="malls-config-list" style="margin-top: 20px;"></div>
+        <button class="btn-main" style="background:#444;" onclick="closeModal('modal-malls')">CERRAR</button>
+    </div>
+
+    <div id="modal-salida" class="modal">
+        <h2>Registrar Salida</h2>
+        <label>CC:</label>
+        <select id="s-mall"></select>
+        <label>Local:</label>
+        <input type="text" id="s-local" placeholder="Ej: Local 201">
+        <label>Producto:</label>
+        <select id="s-prod" onchange="updateSalidaSizes()"></select>
+        <label>Talla:</label>
+        <select id="s-size"></select>
+        <label>Cantidad:</label>
+        <input type="number" id="s-qty" value="1">
+        <button class="btn-main" id="btn-out" onclick="saveSalida()">
+            <div class="spinner" id="spin-out"></div> <span>ENTREGAR PRODUCTO</span>
+        </button>
+        <button class="btn-main" style="background:#444;" onclick="closeModal('modal-salida')">CANCELAR</button>
+    </div>
+
+    <script>
         const firebaseConfig = {
-          apiKey: "AIzaSyD0ndSzE5JvgsvVdcUJa9S9yR3X_VvY8-Y",
-          authDomain: "permitidos-step.firebaseapp.com",
-          projectId: "permitidos-step",
-          storageBucket: "permitidos-step.firebasestorage.app",
-          messagingSenderId: "790890287189",
-          appId: "1:790890287189:web:f4dcac6e46765790a98075"
+            apiKey: "AIzaSyD0ndSzE5JvgsvVdcUJa9S9yR3X_VvY8-Y",
+            authDomain: "permitidos-step.firebaseapp.com",
+            projectId: "permitidos-step",
+            storageBucket: "permitidos-step.firebasestorage.app",
+            messagingSenderId: "790890287189",
+            appId: "1:790890287189:web:f4dcac6e46765790a98075"
         };
 
-        // Inicialización forzada
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-        const { useState, useEffect } = React;
 
-        function App() {
-            const [tab, setTab] = useState('locales');
-            const [inventory, setInventory] = useState([]);
-            const [malls, setMalls] = useState([]);
-            const [permitidos, setPermitidos] = useState([]);
-            const [searchTerm, setSearchTerm] = useState('');
-            const [loading, setLoading] = useState(false);
-            const [isReady, setIsReady] = useState(false); // Seguro de arranque
-            
-            const [showInvForm, setShowInvForm] = useState(false);
-            const [showMallMgmt, setShowMallMgmt] = useState(false);
-            const [showAddPermitido, setShowAddPermitido] = useState(false);
-            const [editProduct, setEditProduct] = useState(null);
-            const [sizesInput, setSizesInput] = useState([{ size: '', qty: '' }]);
+        let inventory = [];
+        let malls = [];
+        let permitidos = [];
+        let editingId = null;
 
-            useEffect(() => {
-                // Si en 3 segundos no carga, forzamos la entrada
-                const timeout = setTimeout(() => setIsReady(true), 3000);
+        // Carga inicial de datos
+        db.collection("inventory").onSnapshot(s => {
+            inventory = s.docs.map(d => ({id: d.id, ...d.data()}));
+            renderInventory();
+            updateProductSelects();
+            checkReady();
+        });
 
-                const unsub1 = db.collection("inventory").onSnapshot(s => {
-                    setInventory(s.docs.map(d => ({id: d.id, ...d.data()})));
-                    setIsReady(true);
-                }, () => setIsReady(true));
+        db.collection("malls").onSnapshot(s => {
+            malls = s.docs.map(d => ({id: d.id, ...d.data()}));
+            renderMalls();
+            checkReady();
+        });
 
-                const unsub2 = db.collection("malls").onSnapshot(s => setMalls(s.docs.map(d => ({id: d.id, ...d.data()}))));
-                const unsub3 = db.collection("permitidos").onSnapshot(s => setPermitidos(s.docs.map(d => ({id: d.id, ...d.data()}))));
-                
-                return () => { unsub1(); unsub2(); unsub3(); clearTimeout(timeout); };
-            }, []);
+        db.collection("permitidos").onSnapshot(s => {
+            permitidos = s.docs.map(d => ({id: d.id, ...d.data()}));
+            renderLocales();
+            checkReady();
+        });
 
-            const handleAction = async (task) => {
-                setLoading(true);
-                try { await task(); } 
-                catch (e) { alert("Error de conexión"); }
-                setLoading(false);
-            };
-
-            const filteredInventory = inventory.filter(p => 
-                (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-                (p.color || '').toLowerCase().includes(searchTerm.toLowerCase())
-            );
-
-            if (!isReady) return (
-                <div style={{display:'flex', flexDirection:'column', justifyContent:'center', alignitems:'center', height:'100vh', gap: 20}}>
-                    <div className="spinner" style={{borderTopColor: 'var(--primary)', width: 40, height: 40}}></div>
-                    <div style={{color:'var(--primary)'}}>CONECTANDO...</div>
-                </div>
-            );
-
-            return (
-                <div>
-                    <div className="header">
-                        <div style={{width: 40}}></div>
-                        <h1>MONKA PRO ☁️</h1>
-                        <button onClick={() => setShowMallMgmt(true)} style={{background:'none', border:'none', fontSize:'1.5rem', color:'var(--primary)'}}>⚙️</button>
-                    </div>
-
-                    <div className="nav">
-                        <button className={`nav-btn ${tab === 'locales' ? 'active' : ''}`} onClick={() => setTab('locales')}>LOCALES</button>
-                        <button className={`nav-btn ${tab === 'bodega' ? 'active' : ''}`} onClick={() => setTab('bodega')}>BODEGA</button>
-                    </div>
-
-                    {tab === 'bodega' ? (
-                        <div>
-                            <div className="search-container">
-                                <input placeholder="🔍 Buscar..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{marginTop:0}} />
-                            </div>
-                            <div style={{padding: 10}}>
-                                <button className="btn-main" onClick={() => setShowInvForm(true)}>+ NUEVO PRODUCTO</button>
-                                {filteredInventory.map(p => (
-                                    <div key={p.id} className="card" onClick={() => {
-                                        setEditProduct(p);
-                                        setSizesInput(Object.entries(p.sizes || {}).map(([size, qty]) => ({ size, qty })));
-                                    }}>
-                                        <b>{p.name}</b> <span style={{float:'right', color:'var(--primary)'}}>${(p.sellPrice || 0).toLocaleString()}</span><br/>
-                                        <small>{p.color}</small>
-                                        <div style={{marginTop:10}}>
-                                            {Object.entries(p.sizes || {}).map(([sz, q]) => (
-                                                <span key={sz} className="size-tag">{sz}: {q}</span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ) : (
-                        <div style={{padding: 10}}>
-                            {malls.map(m => {
-                                const items = permitidos.filter(p => p.mall === m.name);
-                                if(items.length === 0) return null;
-                                return (
-                                    <div key={m.id} className="card">
-                                        <b style={{color:'var(--primary)'}}>📍 {m.name}</b>
-                                        {items.map(p => (
-                                            <div key={p.id} style={{marginTop:15, borderTop:'1px solid #333', paddingTop:10}}>
-                                                <b>{p.local}</b> - {p.name}<br/>
-                                                <small>Talla: {p.size} | ${(p.sellPrice || 0).toLocaleString()}</small>
-                                                <div style={{display:'flex', gap:10, marginTop:10}}>
-                                                    <button className="btn-main" style={{background:'var(--success)', color:'white', marginTop:0}} onClick={() => db.collection("permitidos").doc(p.id).delete()}>VENDIDO</button>
-                                                    <button className="btn-main" style={{background:'#444', color:'white', marginTop:0}} onClick={() => db.collection("permitidos").doc(p.id).delete()}>DEVOLVER</button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    <button className="fab" onClick={() => setShowAddPermitido(true)}>+</button>
-
-                    {/* MODAL EDITAR STOCK */}
-                    {editProduct && (
-                        <div className="modal">
-                            <h2>Stock: {editProduct.name}</h2>
-                            {sizesInput.map((s, i) => (
-                                <div key={i} style={{display:'flex', gap:5, marginTop:5}}>
-                                    <input placeholder="Talla" value={s.size} onChange={e => { const n = [...sizesInput]; n[i].size = e.target.value.toUpperCase(); setSizesInput(n); }} />
-                                    <input type="number" placeholder="Cant" value={s.qty} onChange={e => { const n = [...sizesInput]; n[i].qty = e.target.value; setSizesInput(n); }} />
-                                    <button onClick={() => setSizesInput(sizesInput.filter((_, idx) => idx !== i))} style={{background:'none', border:'none', color: 'var(--error)'}}>✕</button>
-                                </div>
-                            ))}
-                            <button onClick={() => setSizesInput([...sizesInput, {size:'', qty:''}])} className="btn-main" style={{background:'none', border:'1px dashed var(--primary)', color:'var(--primary)'}}>+ Talla</button>
-                            <button className="btn-main" disabled={loading} onClick={() => handleAction(async () => {
-                                const sMap = {};
-                                sizesInput.forEach(s => { if(s.size) sMap[s.size] = parseInt(s.qty) || 0; });
-                                await db.collection("inventory").doc(editProduct.id).update({ sizes: sMap });
-                                setEditProduct(null);
-                            })}>{loading ? <div className="spinner"></div> : 'GUARDAR'}</button>
-                            <button className="btn-main" style={{background:'#444'}} onClick={() => setEditProduct(null)}>CERRAR</button>
-                        </div>
-                    )}
-
-                    {/* MODAL NUEVO PRODUCTO */}
-                    {showInvForm && (
-                        <div className="modal">
-                            <h2>Nuevo Producto</h2>
-                            <input id="nn" placeholder="Nombre" />
-                            <input id="cc" placeholder="Color" />
-                            <input id="bp" type="number" placeholder="Costo" />
-                            <input id="sp" type="number" placeholder="Venta" />
-                            {sizesInput.map((s, i) => (
-                                <div key={i} style={{display:'flex', gap:5, marginTop:5}}>
-                                    <input placeholder="Talla" value={s.size} onChange={e => { const n = [...sizesInput]; n[i].size = e.target.value.toUpperCase(); setSizesInput(n); }} />
-                                    <input type="number" placeholder="Cant" value={s.qty} onChange={e => { const n = [...sizesInput]; n[i].qty = e.target.value; setSizesInput(n); }} />
-                                </div>
-                            ))}
-                            <button onClick={() => setSizesInput([...sizesInput, {size:'', qty:''}])} className="btn-main" style={{background:'none', border:'1px dashed var(--primary)', color:'var(--primary)'}}>+ Talla</button>
-                            <button className="btn-main" disabled={loading} onClick={() => handleAction(async () => {
-                                const sMap = {};
-                                sizesInput.forEach(s => { if(s.size) sMap[s.size] = parseInt(s.qty) || 0; });
-                                await db.collection("inventory").add({
-                                    name: document.getElementById('nn').value.toUpperCase(),
-                                    color: document.getElementById('cc').value.toUpperCase(),
-                                    buyPrice: parseFloat(document.getElementById('bp').value),
-                                    sellPrice: parseFloat(document.getElementById('sp').value),
-                                    sizes: sMap
-                                });
-                                setShowInvForm(false);
-                            })}>{loading ? <div className="spinner"></div> : 'CREAR'}</button>
-                            <button className="btn-main" style={{background:'#444'}} onClick={() => setShowInvForm(false)}>CANCELAR</button>
-                        </div>
-                    )}
-
-                    {/* MODAL ENTREGA */}
-                    {showAddPermitido && (
-                        <div className="modal">
-                            <h2>Salida Local</h2>
-                            <select id="mm">{malls.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}</select>
-                            <input id="ll" placeholder="Local" />
-                            <select id="pp" onChange={(e) => {
-                                const p = inventory.find(i => i.id === e.target.value);
-                                window.tmp = p ? Object.keys(p.sizes || {}) : [];
-                                setTab('locales');
-                            }}>
-                                <option value="">Producto...</option>
-                                {inventory.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                            </select>
-                            <select id="ss">{(window.tmp || []).map(s => <option key={s} value={s}>{s}</option>)}</select>
-                            <input id="qq" type="number" defaultValue="1" />
-                            <button className="btn-main" disabled={loading} onClick={() => handleAction(async () => {
-                                const p = inventory.find(i => i.id === document.getElementById('pp').value);
-                                const sz = document.getElementById('ss').value;
-                                const q = parseInt(document.getElementById('qq').value);
-                                await db.collection("permitidos").add({
-                                    mall: document.getElementById('mm').value,
-                                    local: document.getElementById('ll').value.toUpperCase(),
-                                    name: p.name, size: sz, qty: q, sellPrice: p.sellPrice,
-                                    date: new Date().toLocaleDateString()
-                                });
-                                const nS = {...p.sizes}; nS[sz] -= q;
-                                await db.collection("inventory").doc(p.id).update({ sizes: nS });
-                                setShowAddPermitido(false);
-                            })}>{loading ? <div className="spinner"></div> : 'ENTREGAR'}</button>
-                            <button className="btn-main" style={{background:'#444'}} onClick={() => setShowAddPermitido(false)}>CERRAR</button>
-                        </div>
-                    )}
-
-                    {/* MODAL MALLS */}
-                    {showMallMgmt && (
-                        <div className="modal">
-                            <h2>Centros Comerciales</h2>
-                            <input id="newm" placeholder="Nombre CC" />
-                            <button className="btn-main" onClick={() => handleAction(async () => {
-                                await db.collection("malls").add({ name: document.getElementById('newm').value.toUpperCase() });
-                                document.getElementById('newm').value = '';
-                            })}>AGREGAR</button>
-                            <div style={{marginTop:20}}>
-                                {malls.map(m => (
-                                    <div key={m.id} style={{padding:10, background:'#222', marginBottom:5, borderRadius:5, display:'flex', justifyContent:'space-between'}}>
-                                        <span>{m.name}</span>
-                                        <button onClick={() => db.collection("malls").doc(m.id).delete()} style={{color:'var(--error)', background:'none', border:'none'}}>✕</button>
-                                    </div>
-                                ))}
-                            </div>
-                            <button className="btn-main" style={{background:'#444'}} onClick={() => setShowMallMgmt(false)}>CERRAR</button>
-                        </div>
-                    )}
-                </div>
-            );
+        function checkReady() {
+            document.getElementById('loading-screen').style.display = 'none';
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        function showTab(t) {
+            document.getElementById('tab-locales').style.display = t === 'locales' ? 'block' : 'none';
+            document.getElementById('tab-bodega').style.display = t === 'bodega' ? 'block' : 'none';
+            document.getElementById('btn-locales').className = 'nav-btn' + (t === 'locales' ? ' active' : '');
+            document.getElementById('btn-bodega').className = 'nav-btn' + (t === 'bodega' ? ' active' : '');
+        }
+
+        function openModal(id) { document.getElementById(id).style.display = 'block'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        function addSizeField(containerId, sz = '', qt = '') {
+            const div = document.createElement('div');
+            div.style.display = 'flex';
+            div.style.gap = '5px';
+            div.innerHTML = `<input type="text" placeholder="Talla" class="size-n" value="${sz}">
+                             <input type="number" placeholder="Cant" class="size-q" value="${qt}">
+                             <button onclick="this.parentElement.remove()" style="background:none; border:none; color:var(--error); font-size:1.2rem;">✕</button>`;
+            document.getElementById(containerId).appendChild(div);
+        }
+
+        async function saveProduct() {
+            setLoading('btn-save-p', true);
+            const sizes = {};
+            document.querySelectorAll('#p-sizes-container div').forEach(row => {
+                const n = row.querySelector('.size-n').value.toUpperCase();
+                const q = parseInt(row.querySelector('.size-q').value);
+                if(n) sizes[n] = q || 0;
+            });
+
+            await db.collection("inventory").add({
+                name: document.getElementById('p-nombre').value.toUpperCase(),
+                color: document.getElementById('p-color').value.toUpperCase(),
+                buyPrice: Number(document.getElementById('p-costo').value),
+                sellPrice: Number(document.getElementById('p-venta').value),
+                sizes: sizes
+            });
+            setLoading('btn-save-p', false);
+            closeModal('modal-producto');
+        }
+
+        function openEditStock(id) {
+            const p = inventory.find(i => i.id === id);
+            editingId = id;
+            document.getElementById('edit-title').innerText = 'Stock: ' + p.name;
+            const container = document.getElementById('edit-sizes-container');
+            container.innerHTML = '';
+            Object.entries(p.sizes || {}).forEach(([sz, qt]) => addSizeField('edit-sizes-container', sz, qt));
+            openModal('modal-edit-stock');
+        }
+
+        async function updateStock() {
+            setLoading('btn-update-s', true);
+            const sizes = {};
+            document.querySelectorAll('#edit-sizes-container div').forEach(row => {
+                const n = row.querySelector('.size-n').value.toUpperCase();
+                const q = parseInt(row.querySelector('.size-q').value);
+                if(n) sizes[n] = q || 0;
+            });
+            await db.collection("inventory").doc(editingId).update({ sizes });
+            setLoading('btn-update-s', false);
+            closeModal('modal-edit-stock');
+        }
+
+        function renderInventory() {
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const list = document.getElementById('inventory-list');
+            list.innerHTML = '';
+            inventory.filter(p => p.name.toLowerCase().includes(search) || p.color.toLowerCase().includes(search)).forEach(p => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.onclick = () => openEditStock(p.id);
+                card.innerHTML = `<b>${p.name}</b> <span style="float:right; color:var(--primary)">$${p.sellPrice.toLocaleString()}</span><br>
+                                  <small>${p.color}</small><br>
+                                  <div style="margin-top:10px">${Object.entries(p.sizes || {}).map(([s, q]) => `<span class="size-tag">${s}: ${q}</span>`).join('')}</div>
+                                  <p style="font-size:0.6rem; text-align:right; color:var(--primary); margin:5px 0 0;">✎ Toca para editar stock</p>`;
+                list.appendChild(card);
+            });
+        }
+
+        function renderLocales() {
+            const list = document.getElementById('malls-list');
+            list.innerHTML = '';
+            malls.forEach(m => {
+                const items = permitidos.filter(p => p.mall === m.name);
+                if(items.length === 0) return;
+                const div = document.createElement('div');
+                div.className = 'card';
+                div.innerHTML = `<b style="color:var(--primary)">📍 ${m.name}</b>` + 
+                    items.map(p => `<div style="margin-top:15px; border-top:1px solid #333; paddingTop:10px;">
+                        <b>${p.local}</b> - ${p.name}<br><small>Talla: ${p.size} | Cant: ${p.qty}</small>
+                        <div style="display:flex; gap:10px; margin-top:10px;">
+                            <button class="btn-main" style="background:var(--success); color:white; margin:0;" onclick="deletePermitido('${p.id}')">VENDIDO</button>
+                            <button class="btn-main" style="background:#444; color:white; margin:0;" onclick="deletePermitido('${p.id}')">DEVOLVER</button>
+                        </div>
+                    </div>`).join('');
+                list.appendChild(div);
+            });
+        }
+
+        async function saveSalida() {
+            setLoading('btn-out', true);
+            const pId = document.getElementById('s-prod').value;
+            const p = inventory.find(i => i.id === pId);
+            const sz = document.getElementById('s-size').value;
+            const qty = parseInt(document.getElementById('s-qty').value);
+
+            await db.collection("permitidos").add({
+                mall: document.getElementById('s-mall').value,
+                local: document.getElementById('s-local').value.toUpperCase(),
+                name: p.name, size: sz, qty: qty, date: new Date().toLocaleDateString()
+            });
+
+            const newSizes = {...p.sizes};
+            newSizes[sz] -= qty;
+            await db.collection("inventory").doc(pId).update({ sizes: newSizes });
+            
+            setLoading('btn-out', false);
+            closeModal('modal-salida');
+        }
+
+        function updateProductSelects() {
+            const s = document.getElementById('s-prod');
+            s.innerHTML = '<option value="">Seleccionar producto...</option>' + 
+                          inventory.map(p => `<option value="${p.id}">${p.name} (${p.color})</option>`).join('');
+        }
+
+        function updateSalidaSizes() {
+            const pId = document.getElementById('s-prod').value;
+            const p = inventory.find(i => i.id === pId);
+            const s = document.getElementById('s-size');
+            s.innerHTML = p ? Object.keys(p.sizes).map(sz => `<option value="${sz}">${sz}</option>`).join('') : '';
+        }
+
+        async function saveMall() {
+            const name = document.getElementById('new-mall-name').value.toUpperCase();
+            if(name) await db.collection("malls").add({ name });
+            document.getElementById('new-mall-name').value = '';
+        }
+
+        function renderMalls() {
+            const s = document.getElementById('s-mall');
+            s.innerHTML = malls.map(m => `<option value="${m.name}">${m.name}</option>`).join('');
+            const config = document.getElementById('malls-config-list');
+            config.innerHTML = malls.map(m => `<div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+                <span>${m.name}</span><button onclick="db.collection('malls').doc('${m.id}').delete()" style="color:var(--error); background:none; border:none;">✕</button>
+            </div>`).join('');
+        }
+
+        async function deletePermitido(id) { if(confirm('¿Confirmar acción?')) await db.collection('permitidos').doc(id).delete(); }
+
+        function setLoading(btnId, isLoading) {
+            const btn = document.getElementById(btnId);
+            const spin = btn.querySelector('.spinner');
+            const txt = btn.querySelector('span');
+            btn.disabled = isLoading;
+            if(spin) spin.style.display = isLoading ? 'block' : 'none';
+            if(txt) txt.style.opacity = isLoading ? '0.5' : '1';
+        }
     </script>
 </body>
 </html>
