@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sistema Control & Inventario</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        :root {
+            --bg-body: #121212;
+            --bg-card: #1e1e1e;
+            --primary: #bb86fc;
+            --secondary: #03dac6;
+            --error: #cf6679;
+            --success: #4caf50;
+            --surface: #2c2c2c;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, sans-serif;
+            background-color: var(--bg-body);
+            color: white;
+            margin: 0; padding: 0;
+        }
+
+        .container { max-width: 500px; margin: 0 auto; padding: 15px; padding-bottom: 100px; }
+
+        /* Tabs Navigation */
+        .nav-tabs {
+            display: flex;
+            background: var(--bg-card);
+            position: sticky;
+            top: 0; z-index: 100;
+            border-bottom: 1px solid #333;
+        }
+        .tab-btn {
+            flex: 1; padding: 15px; border: none; background: none;
+            color: #888; font-weight: bold; cursor: pointer;
+        }
+        .tab-btn.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+
+        /* Inventario Styles */
+        .inv-card {
+            background: var(--surface);
+            padding: 12px; border-radius: 8px; margin-bottom: 8px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .stock-badge {
+            background: #333; padding: 5px 10px; border-radius: 5px;
+            font-weight: bold; color: var(--secondary);
+        }
+
+        /* Pedidos Styles (Copia de tu lógica visual) */
+        .pedido-card {
+            background: var(--surface);
+            padding: 12px; border-radius: 8px; margin-bottom: 10px;
+            border-left: 5px solid #555;
+        }
+        .pedido-card.sold { border-left-color: var(--success); background: #1b3320; }
+        .pedido-card.returned { border-left-color: var(--error); background: #331b1b; }
+
+        .btn-action {
+            flex: 1; padding: 10px; border: none; border-radius: 5px;
+            font-weight: bold; color: white; cursor: pointer; margin-top: 10px;
+        }
+        .btn-v { background: var(--success); margin-right: 5px; }
+        .btn-r { background: var(--error); }
+
+        /* Floating Form */
+        .fab {
+            position: fixed; bottom: 20px; right: 20px;
+            width: 60px; height: 60px; border-radius: 30px;
+            background: var(--primary); border: none; font-size: 30px;
+            color: black; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        .modal {
+            position: fixed; top: 0; left:0; right:0; bottom:0;
+            background: rgba(0,0,0,0.9); display: flex; align-items: flex-end; z-index: 1000;
+        }
+        .form-content {
+            background: var(--bg-card); width: 100%; padding: 20px;
+            border-radius: 20px 20px 0 0;
+        }
+        input, select {
+            width: 100%; padding: 12px; margin: 8px 0;
+            background: #333; border: 1px solid #444; color: white;
+            border-radius: 5px; box-sizing: border-box;
+        }
+        .warning { color: #ffab40; font-size: 0.85rem; margin-top: -5px; display: block; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function App() {
+            const [view, setView] = useState('pedidos'); // 'pedidos' o 'inventario'
+            const [showModal, setShowModal] = useState(false);
+            
+            // Estado de Inventario (Simplificado para el ejemplo)
+            const [inventory, setInventory] = useState(() => {
+                const saved = localStorage.getItem('inv_data');
+                return saved ? JSON.parse(saved) : [
+                    { ref: 'SH022', desc: 'Body Negro', stock: 50 },
+                    { ref: 'SH018', desc: 'Calzon Faja', stock: 30 },
+                    { ref: 'IMP003', desc: 'Combo Tops', stock: 15 }
+                ];
+            });
+
+            // Estado de Pedidos (Lo que está en la calle)
+            const [pedidos, setPedidos] = useState(() => {
+                const saved = localStorage.getItem('pedidos_data');
+                return saved ? JSON.parse(saved) : [];
+            });
+
+            useEffect(() => {
+                localStorage.setItem('inv_data', JSON.stringify(inventory));
+                localStorage.setItem('pedidos_data', JSON.stringify(pedidos));
+            }, [inventory, pedidos]);
+
+            const registrarEntrega = (ref, qty, local) => {
+                // 1. Restar del inventario
+                setInventory(prev => prev.map(item => 
+                    item.ref === ref ? { ...item, stock: item.stock - qty } : item
+                ));
+
+                // 2. Agregar a pedidos
+                const nuevo = {
+                    id: Date.now(),
+                    ref,
+                    qty: parseInt(qty),
+                    local,
+                    status: 'pending', // pending, sold, returned
+                    date: new Date().toLocaleDateString()
+                };
+                setPedidos([nuevo, ...pedidos]);
+                setShowModal(false);
+            };
+
+            const actualizarEstado = (id, nuevoEstado) => {
+                setPedidos(prev => prev.map(p => {
+                    if (p.id === id) {
+                        // Si era devuelto, sumamos de nuevo al inventario
+                        if (nuevoEstado === 'returned') {
+                            setInventory(inv => inv.map(i => 
+                                i.ref === p.ref ? { ...i, stock: i.stock + p.qty } : i
+                            ));
+                        }
+                        return { ...p, status: nuevoEstado };
+                    }
+                    return p;
+                }));
+            };
+
+            return (
+                <div className="container">
+                    <div className="nav-tabs">
+                        <button className={`tab-btn ${view === 'pedidos' ? 'active' : ''}`} onClick={() => setView('pedidos')}>PEDIDOS (CALLE)</button>
+                        <button className={`tab-btn ${view === 'inventario' ? 'active' : ''}`} onClick={() => setView('inventario')}>MI INVENTARIO</button>
+                    </div>
+
+                    {view === 'inventario' ? (
+                        <div style={{marginTop: '20px'}}>
+                            <h3>Stock Disponible</h3>
+                            {inventory.map(item => (
+                                <div key={item.ref} className="inv-card">
+                                    <div>
+                                        <strong>{item.ref}</strong><br/>
+                                        <small style={{color: '#aaa'}}>{item.desc}</small>
+                                    </div>
+                                    <div className="stock-badge">{item.stock} un.</div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div style={{marginTop: '20px'}}>
+                            <h3>Entregas a Locales</h3>
+                            {pedidos.map(p => (
+                                <div key={p.id} className={`pedido-card ${p.status}`}>
+                                    <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                                        <strong>{p.ref} - {p.local}</strong>
+                                        <span>{p.qty} un.</span>
+                                    </div>
+                                    <small>{p.date}</small>
+                                    
+                                    {p.status === 'pending' && (
+                                        <div style={{display: 'flex'}}>
+                                            <button className="btn-action btn-v" onClick={() => actualizarEstado(p.id, 'sold')}>VENDIDO</button>
+                                            <button className="btn-action btn-r" onClick={() => actualizarEstado(p.id, 'returned')}>DEVUELTO</button>
+                                        </div>
+                                    )}
+                                    {p.status === 'sold' && <div style={{marginTop: '5px', color: '#4caf50', fontWeight: 'bold'}}>✓ COBRADO</div>}
+                                    {p.status === 'returned' && <div style={{marginTop: '5px', color: '#cf6679', fontWeight: 'bold'}}>↺ DEVUELTO A STOCK</div>}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <button className="fab" onClick={() => setShowModal(true)}>+</button>
+
+                    {showModal && (
+                        <div className="modal">
+                            <div className="form-content">
+                                <h3>Nueva Entrega</h3>
+                                <label>Referencia:</label>
+                                <select id="f-ref">
+                                    {inventory.map(i => <option key={i.ref} value={i.ref}>{i.ref} (Disp: {i.stock})</option>)}
+                                </select>
+                                
+                                <label>Cantidad:</label>
+                                <input type="number" id="f-qty" placeholder="¿Cuántos llevas?" />
+                                
+                                <label>Local Destino:</label>
+                                <input type="text" id="f-local" placeholder="Nombre del local" />
+                                
+                                <button className="btn-action" style={{background: 'var(--primary)', color: 'black', width: '100%'}} 
+                                    onClick={() => {
+                                        const r = document.getElementById('f-ref').value;
+                                        const q = document.getElementById('f-qty').value;
+                                        const l = document.getElementById('f-local').value;
+                                        if(r && q && l) registrarEntrega(r, q, l);
+                                    }}>
+                                    Confirmar Salida
+                                </button>
+                                <button className="tab-btn" style={{width: '100%'}} onClick={() => setShowModal(false)}>Cancelar</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
