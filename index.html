@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Permitidos Monka - Sistema Completo</title>
+    <title>Permitidos Monka - Pro</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -12,7 +12,7 @@
     <style>
         :root { --primary: #d4af37; --bg: #0f0f0f; --surface: #1e1e1e; --success: #2e7d32; --error: #ff4444; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; margin: 0; padding-bottom: 80px; }
-        .header { background: var(--surface); padding: 15px; text-align: center; border-bottom: 2px solid var(--primary); }
+        .header { background: var(--surface); padding: 15px; text-align: center; border-bottom: 2px solid var(--primary); display: flex; justify-content: center; align-items: center; gap: 10px; }
         .header h1 { margin: 0; color: var(--primary); font-size: 1.1rem; letter-spacing: 2px; text-transform: uppercase; }
         .nav { display: flex; background: var(--surface); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #333; }
         .nav-btn { flex: 1; padding: 12px; border: none; background: none; color: #888; font-weight: bold; font-size: 0.7rem; }
@@ -25,9 +25,8 @@
         .filter-btn.active { background: var(--primary); color: black; border-color: var(--primary); }
         .card { background: var(--surface); padding: 15px; margin: 10px; border-radius: 8px; border-left: 4px solid var(--primary); position: relative; }
         .size-tag { background: #333; padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; border: 1px solid #444; display: inline-block; margin-top: 5px; }
-        .low-stock { color: var(--error); border-color: var(--error); font-weight: bold; animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-        .btn-del { position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--error); font-size: 1.2rem; cursor: pointer; }
+        .low-stock { color: var(--error); border-color: var(--error); font-weight: bold; }
+        .btn-del { position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--error); font-size: 1.1rem; cursor: pointer; }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; padding: 20px; overflow-y: auto; }
         label { display: block; margin-top: 12px; color: var(--primary); font-size: 0.75rem; font-weight: bold; }
         input, select { width: 100%; padding: 12px; margin-top: 5px; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 8px; box-sizing: border-box; }
@@ -60,62 +59,36 @@
             const [inventory, setInventory] = useState([]);
             const [permitidos, setPermitidos] = useState([]);
             const [history, setHistory] = useState([]);
-            const [malls] = useState(["OITI", "GRAN SAM", "IMPERIO", "MINITIENDAS"]);
+            const [malls, setMalls] = useState([]);
             const [filterMall, setFilterMall] = useState('TODOS');
             const [showInvForm, setShowInvForm] = useState(false);
             const [showAddPermitido, setShowAddPermitido] = useState(false);
             const [showEditStock, setShowEditStock] = useState(null);
+            const [showMallMgmt, setShowMallMgmt] = useState(false);
             const [sizesInput, setSizesInput] = useState([{ size: '', qty: '' }]);
 
             useEffect(() => {
                 db.collection("inventory").onSnapshot(s => setInventory(s.docs.map(d => ({id: d.id, ...d.data()}))));
                 db.collection("permitidos").onSnapshot(s => setPermitidos(s.docs.map(d => ({id: d.id, ...d.data()}))));
                 db.collection("history").orderBy("closedAt", "desc").limit(50).onSnapshot(s => setHistory(s.docs.map(d => d.data())));
+                db.collection("malls").onSnapshot(s => {
+                    const list = s.docs.map(d => ({id: d.id, ...d.data()}));
+                    setMalls(list.length > 0 ? list : []);
+                });
             }, []);
-
-            const addProduct = async (e) => {
-                e.preventDefault();
-                const f = e.target;
-                const sMap = {};
-                sizesInput.forEach(s => { if(s.size) sMap[s.size.toUpperCase()] = parseInt(s.qty) || 0; });
-                await db.collection("inventory").add({
-                    name: f.n.value.toUpperCase(), ref: f.r.value.toUpperCase(), color: f.c.value.toUpperCase(),
-                    buyPrice: parseFloat(f.bp.value), sellPrice: parseFloat(f.sp.value), sizes: sMap
-                });
-                setShowInvForm(false); setSizesInput([{size:'', qty:''}]); f.reset();
-            };
-
-            const deliverProduct = async (e) => {
-                e.preventDefault();
-                const f = e.target;
-                const p = inventory.find(i => i.id === f.pId.value);
-                const q = parseInt(f.q.value);
-                const sz = f.sz.value;
-                await db.collection("permitidos").add({
-                    mall: f.m.value, local: f.l.value, name: p.name, ref: p.ref, color: p.color, size: sz,
-                    qty: q, sellPrice: p.sellPrice, buyPrice: p.buyPrice, date: new Date().toLocaleDateString()
-                });
-                const newS = {...p.sizes}; newS[sz] -= q;
-                await db.collection("inventory").doc(p.id).update({ sizes: newS });
-                setShowAddPermitido(false);
-            };
 
             const resolveStatus = async (item, status) => {
                 if (status === 'sold') {
                     await db.collection("history").add({ ...item, status: 'sold', profit: (item.sellPrice - item.buyPrice) * item.qty, closedAt: new Date().toLocaleString() });
                 } else {
                     const p = inventory.find(x => x.ref === item.ref && x.color === item.color);
-                    if(p) { const nS = {...p.sizes}; nS[item.size] = (nS[item.size] || 0) + item.qty; await db.collection("inventory").doc(p.id).update({ sizes: nS }); }
+                    if(p) { 
+                        const nS = {...p.sizes}; 
+                        nS[item.size] = (nS[item.size] || 0) + item.qty; 
+                        await db.collection("inventory").doc(p.id).update({ sizes: nS }); 
+                    }
                 }
                 await db.collection("permitidos").doc(item.id).delete();
-            };
-
-            const updateStock = async (e) => {
-                e.preventDefault();
-                const newS = {};
-                new FormData(e.target).forEach((v, k) => { if(k.startsWith('sz_')) newS[k.replace('sz_', '')] = parseInt(v) || 0; });
-                await db.collection("inventory").doc(showEditStock.id).update({ sizes: newS });
-                setShowEditStock(null);
             };
 
             const historyFiltered = filterMall === 'TODOS' ? history : history.filter(h => h.mall === filterMall);
@@ -123,7 +96,11 @@
 
             return (
                 <div>
-                    <div className="header"><h1>PERMITIDOS MONKA ☁️</h1></div>
+                    <div className="header">
+                        <h1>PERMITIDOS MONKA ☁️</h1>
+                        <button onClick={() => setShowMallMgmt(true)} style={{background:'none', border:'none', fontSize:'1.2rem'}}>⚙️</button>
+                    </div>
+
                     <div className="nav">
                         <button className={`nav-btn ${tab === 'permitidos' ? 'active' : ''}`} onClick={() => setTab('permitidos')}>LOCALES</button>
                         <button className={`nav-btn ${tab === 'inventario' ? 'active' : ''}`} onClick={() => setTab('inventario')}>BODEGA</button>
@@ -139,15 +116,15 @@
                     {tab === 'permitidos' && (
                         <div>
                             {malls.map(m => {
-                                const items = permitidos.filter(p => p.mall === m);
+                                const items = permitidos.filter(p => p.mall === m.name);
                                 if(items.length === 0) return null;
                                 return (
-                                    <div key={m} className="card">
-                                        <div style={{color:'var(--primary)', fontWeight:'bold', marginBottom:10}}>📍 {m}</div>
+                                    <div key={m.id} className="card">
+                                        <div style={{color:'var(--primary)', fontWeight:'bold', marginBottom:10}}>📍 {m.name}</div>
                                         {items.map(p => (
                                             <div key={p.id} style={{borderBottom:'1px solid #333', padding:'10px 0'}}>
-                                                <b>{p.local}</b> - {p.name} ({p.color})<br/>
-                                                <small>Talla: {p.size} | Cant: {p.qty} | {fCurrency(p.sellPrice)}</small>
+                                                <b>{p.local}</b> - {p.name}<br/>
+                                                <small>Talla: {p.size} | {p.color} | {fCurrency(p.sellPrice)}</small>
                                                 <div style={{display:'flex', marginTop:10}}>
                                                     <button className="btn-status" style={{background:'var(--success)'}} onClick={() => resolveStatus(p, 'sold')}>VENDIDO</button>
                                                     <button className="btn-status" style={{background:'var(--error)'}} onClick={() => resolveStatus(p, 'returned')}>DEVUELTO</button>
@@ -174,7 +151,6 @@
                                                 <span key={s} className={`size-tag ${q <= 2 ? 'low-stock' : ''}`}>{s}: {q}</span>
                                             ))}
                                         </div>
-                                        <div style={{fontSize:'0.6rem', color:'#888', marginTop:5}}>✎ Toca para editar cantidades</div>
                                     </div>
                                 </div>
                             ))}
@@ -186,7 +162,7 @@
                             <div className="filter-bar">
                                 <button className={`filter-btn ${filterMall === 'TODOS' ? 'active' : ''}`} onClick={() => setFilterMall('TODOS')}>TODOS</button>
                                 {malls.map(m => (
-                                    <button key={m} className={`filter-btn ${filterMall === m ? 'active' : ''}`} onClick={() => setFilterMall(m)}>{m}</button>
+                                    <button key={m.id} className={`filter-btn ${filterMall === m.name ? 'active' : ''}`} onClick={() => setFilterMall(m.name)}>{m.name}</button>
                                 ))}
                             </div>
                             <div style={{padding:10}}>
@@ -194,7 +170,7 @@
                                     <div key={i} className="card" style={{borderLeftColor:'#25d366'}}>
                                         <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.6rem', color:'#aaa'}}><span>{h.closedAt}</span><span style={{color:'#4caf50'}}>+{fCurrency(h.profit)}</span></div>
                                         <div style={{margin:'5px 0'}}><strong>{h.name}</strong> ({h.size}) - {h.mall}</div>
-                                        <button className="btn-status" style={{background:'#25d366', marginTop:5, width:'100%'}} onClick={() => window.open(`https://wa.me/?text=*REPORTE MONKA*%0A📍 CC: ${h.mall}%0A📦: ${h.name}%0A📏 Talla: ${h.size}%0A💵 Valor: ${fCurrency(h.sellPrice)}`, '_blank')}>ENVIAR WHATSAPP</button>
+                                        <button className="btn-status" style={{background:'#25d366', marginTop:5, width:'100%'}} onClick={() => window.open(`https://wa.me/?text=*REPORTE MONKA*%0A📍 CC: ${h.mall}%0A📦: ${h.name}%0A📏 Talla: ${h.size}%0A💵 Valor: ${fCurrency(h.sellPrice)}`, '_blank')}>WHATSAPP</button>
                                     </div>
                                 ))}
                             </div>
@@ -203,12 +179,54 @@
 
                     <button className="fab" onClick={() => setShowAddPermitido(true)}>+</button>
 
+                    {/* MODAL GESTIÓN CENTROS COMERCIALES */}
+                    {showMallMgmt && (
+                        <div className="modal">
+                            <h3>Gestionar Centros Comerciales</h3>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                const name = e.target.mName.value.toUpperCase();
+                                await db.collection("malls").add({ name });
+                                e.target.reset();
+                            }}>
+                                <input name="mName" placeholder="Nombre (Ej: VENTURA)" required />
+                                <button type="submit" className="btn-main" style={{background:'var(--success)', color:'white'}}>AGREGAR CC</button>
+                            </form>
+                            <div style={{marginTop:20}}>
+                                {malls.map(m => (
+                                    <div key={m.id} style={{display:'flex', justifyContent:'space-between', background:'#333', padding:10, marginBottom:5, borderRadius:5}}>
+                                        <span>{m.name}</span>
+                                        <button onClick={async () => await db.collection("malls").doc(m.id).delete()} style={{background:'none', border:'none', color: 'var(--error)'}}>✕</button>
+                                    </div>
+                                ))}
+                            </div>
+                            <button className="btn-main" style={{background:'#444'}} onClick={()=>setShowMallMgmt(false)}>CERRAR</button>
+                        </div>
+                    )}
+
+                    {/* MODAL ENTREGA A LOCAL */}
                     {showAddPermitido && (
                         <div className="modal">
-                            <h3>Registrar Salida a Local</h3>
-                            <form onSubmit={deliverProduct}>
-                                <label>Centro Comercial:</label><select name="m">{malls.map(m => <option key={m} value={m}>{m}</option>)}</select>
-                                <label>Nombre del Local:</label><input name="l" required />
+                            <h3>Registrar Salida</h3>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                const f = e.target;
+                                const p = inventory.find(i => i.id === f.pId.value);
+                                const q = parseInt(f.q.value);
+                                const sz = f.sz.value;
+                                await db.collection("permitidos").add({
+                                    mall: f.m.value, local: f.l.value.toUpperCase(), name: p.name, ref: p.ref, color: p.color, size: sz,
+                                    qty: q, sellPrice: p.sellPrice, buyPrice: p.buyPrice, date: new Date().toLocaleDateString()
+                                });
+                                const newS = {...p.sizes}; newS[sz] -= q;
+                                await db.collection("inventory").doc(p.id).update({ sizes: newS });
+                                setShowAddPermitido(false);
+                            }}>
+                                <label>Centro Comercial:</label>
+                                <select name="m" required>
+                                    {malls.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
+                                </select>
+                                <label>Local (Número/Nombre):</label><input name="l" required />
                                 <label>Producto:</label>
                                 <select name="pId" required onChange={(e) => {
                                     const p = inventory.find(i => i.id === e.target.value);
@@ -216,24 +234,32 @@
                                     setTab(tab); 
                                 }}>
                                     <option value="">Seleccione...</option>
-                                    {inventory.map(i => <option key={i.id} value={i.id}>{i.name} - {i.color}</option>)}
+                                    {inventory.map(i => <option key={i.id} value={i.id}>{i.name} ({i.color})</option>)}
                                 </select>
-                                <label>Talla:</label><select name="sz">{(window.currentSizes || []).map(s => <option key={s} value={s}>{s}</option>)}</select>
+                                <label>Talla:</label>
+                                <select name="sz">{(window.currentSizes || []).map(s => <option key={s} value={s}>{s}</option>)}</select>
                                 <label>Cantidad:</label><input name="q" type="number" defaultValue="1" required />
-                                <button type="submit" className="btn-main">ENTREGAR</button>
-                                <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowAddPermitido(false)}>CERRAR</button>
+                                <button type="submit" className="btn-main">CONFIRMAR SALIDA</button>
+                                <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowAddPermitido(false)}>CANCELAR</button>
                             </form>
                         </div>
                     )}
 
+                    {/* RESTO DE MODALES (EDITAR STOCK Y NUEVO PRODUCTO) */}
                     {showEditStock && (
                         <div className="modal">
                             <h3>Editar Stock: {showEditStock.name}</h3>
-                            <form onSubmit={updateStock}>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                const newS = {};
+                                new FormData(e.target).forEach((v, k) => { if(k.startsWith('sz_')) newS[k.replace('sz_', '')] = parseInt(v) || 0; });
+                                await db.collection("inventory").doc(showEditStock.id).update({ sizes: newS });
+                                setShowEditStock(null);
+                            }}>
                                 {Object.keys(showEditStock.sizes).map(s => (
                                     <div key={s}><label>Talla {s}:</label><input name={`sz_${s}`} type="number" defaultValue={showEditStock.sizes[s]} /></div>
                                 ))}
-                                <button type="submit" className="btn-main">GUARDAR CAMBIOS</button>
+                                <button type="submit" className="btn-main">GUARDAR</button>
                                 <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowEditStock(null)}>CANCELAR</button>
                             </form>
                         </div>
@@ -242,32 +268,13 @@
                     {showInvForm && (
                         <div className="modal">
                             <h3>Nuevo Producto en Bodega</h3>
-                            <form onSubmit={addProduct}>
-                                <label>Nombre:</label><input name="n" placeholder="EJ: NIKE AIR JORDAN" required />
-                                <label>Referencia:</label><input name="r" required />
-                                <label>Color:</label><input name="c" required />
-                                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
-                                    <div><label>Costo COP:</label><input name="bp" type="number" required /></div>
-                                    <div><label>Venta COP:</label><input name="sp" type="number" required /></div>
-                                </div>
-                                <label>Tallas y Cantidades:</label>
-                                {sizesInput.map((s, i) => (
-                                    <div key={i} style={{display:'flex', gap:5, marginBottom:5}}>
-                                        <input placeholder="Talla" value={s.size} onChange={e => { const n = [...sizesInput]; n[i].size = e.target.value; setSizesInput(n); }} />
-                                        <input placeholder="Cant" type="number" value={s.qty} onChange={e => { const n = [...sizesInput]; n[i].qty = e.target.value; setSizesInput(n); }} />
-                                    </div>
-                                ))}
-                                <button type="button" onClick={() => setSizesInput([...sizesInput, {size:'', qty:''}])} style={{background:'none', color:'var(--primary)', border:'1px dashed #d4af37', padding:10, width:'100%', borderRadius:8}}>+ Añadir talla</button>
-                                <button type="submit" className="btn-main">CREAR PRODUCTO</button>
-                                <button type="button" className="btn-main" style={{background:'#444', marginTop:10}} onClick={()=>setShowInvForm(false)}>CANCELAR</button>
-                            </form>
-                        </div>
-                    )}
-                </div>
-            );
-        }
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                const f = e.target;
+                                const sMap = {};
+                                sizesInput.forEach(s => { if(s.size) sMap[s.size.toUpperCase()] = parseInt(s.qty) || 0; });
+                                await db.collection("inventory").add({
+                                    name: f.n.value.toUpperCase(), ref: f.r.value.toUpperCase(), color: f.c.value.toUpperCase(),
+                                    buyPrice: parseFloat(f.bp.value), sellPrice: parseFloat(f.sp.value), sizes: sMap
+                                });
+                                setShowInvForm(false); setSizesInput([{s
