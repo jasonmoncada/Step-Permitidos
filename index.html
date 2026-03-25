@@ -1,238 +1,70 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Monka Pro v4</title>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <style>
-        :root { --primary: #d4af37; --bg: #0f0f0f; --surface: #1e1e1e; --success: #2e7d32; --error: #ff4444; --text: #ffffff; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding-bottom: 90px; }
-        .header { background: var(--surface); padding: 15px; text-align: center; border-bottom: 2px solid var(--primary); position: sticky; top: 0; z-index: 100; }
-        .nav { display: flex; background: var(--surface); position: sticky; top: 54px; z-index: 100; border-bottom: 1px solid #333; }
-        .nav-btn { flex: 1; padding: 15px; border: none; background: none; color: #888; font-weight: bold; font-size: 0.7rem; text-transform: uppercase; }
-        .nav-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
-        .card { background: var(--surface); padding: 15px; margin: 10px; border-radius: 8px; border-left: 4px solid var(--primary); }
-        .card:active { transform: scale(0.98); background: #252525; }
-        .btn-main { width: 100%; padding: 15px; margin-top: 10px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; text-transform: uppercase; cursor: pointer; }
-        .btn-main:active { opacity: 0.7; transform: translateY(2px); }
-        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.98); z-index: 1000; padding: 20px; overflow-y: auto; display: none; }
-        input, select { width: 100%; padding: 12px; margin: 8px 0; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
-        .fab { position: fixed; bottom: 25px; right: 25px; width: 60px; height: 60px; border-radius: 30px; background: var(--primary); border: none; font-size: 30px; color: black; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 99; font-weight: bold; }
-        .ref-badge { background: #333; color: var(--primary); padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; border: 1px solid var(--primary); }
-    </style>
-</head>
-<body>
+// --- NUEVA LÓGICA PARA GESTIÓN DE VENTAS Y DEVOLUCIONES ---
 
-    <div class="header">
-        <h1 style="margin:0; color:var(--primary); font-size:1rem; letter-spacing:2px;">MONKA PRO ☁️</h1>
-    </div>
+function renderLocales() {
+    const cont = document.getElementById('tab-locales');
+    if (permitidos.length === 0) {
+        cont.innerHTML = `<p style="text-align:center; color:#666; margin-top:20px;">No hay productos en locales actualmente.</p>`;
+        return;
+    }
 
-    <div class="nav">
-        <button id="btn-locales" class="nav-btn active" onclick="showTab('locales')">LOCALES</button>
-        <button id="btn-bodega" class="nav-btn" onclick="showTab('bodega')">BODEGA</button>
-        <button id="btn-historial" class="nav-btn" onclick="showTab('historial')">HISTORIAL</button>
-    </div>
-
-    <div id="tab-locales" style="padding:10px;"></div>
-
-    <div id="tab-bodega" style="display:none; padding:10px;">
-        <input type="text" id="search-box" placeholder="🔍 Buscar nombre, color o REF..." oninput="renderInventory()" style="margin-bottom:10px;">
-        <button class="btn-main" onclick="openProductModal()">+ NUEVO PRODUCTO</button>
-        <div id="inventory-list"></div>
-    </div>
-
-    <div id="tab-historial" style="display:none; padding:10px;">
-        <h3 style="color:var(--primary)">Últimos Movimientos</h3>
-        <div id="historial-list"></div>
-    </div>
-
-    <button class="fab" onclick="openSalidaModal()">+</button>
-
-    <div id="modal-p" class="modal">
-        <h2 id="p-title" style="color:var(--primary)">Producto</h2>
-        <input type="text" id="p-ref" placeholder="Referencia (REF)">
-        <input type="text" id="p-nombre" placeholder="Nombre">
-        <input type="text" id="p-color" placeholder="Color">
-        <div style="display:flex; gap:10px;">
-            <input type="number" id="p-costo" placeholder="P. Compra">
-            <input type="number" id="p-venta" placeholder="P. Venta">
+    cont.innerHTML = permitidos.map(p => `
+        <div class="card" style="border-left-color: var(--primary)">
+            <div style="display:flex; justify-content:space-between">
+                <b>${p.local}</b>
+                <span class="ref-badge">REF: ${p.ref || 'S/R'}</span>
+            </div>
+            <div style="margin: 10px 0;">
+                <span style="font-size: 1.1rem;">${p.name}</span><br>
+                <small>Talla: <b style="color:var(--primary)">${p.size}</b></small>
+            </div>
+            
+            <div style="display:flex; gap:10px;">
+                <button class="btn-main" style="background:var(--success); margin-top:0; flex:1;" 
+                    onclick="registrarVenta('${p.id}')">VENDIDO $</button>
+                
+                <button class="btn-main" style="background:var(--error); margin-top:0; flex:1;" 
+                    onclick="devolverABodega('${p.id}', '${p.name}', '${p.size}')">DEVOLVER</button>
+            </div>
         </div>
-        <div id="p-sizes-area"></div>
-        <button class="btn-main" style="background:#333; color:var(--primary); border:1px solid var(--primary)" onclick="addSizeRow()">+ AÑADIR TALLA</button>
-        <button id="p-save-btn" class="btn-main" onclick="saveToFirebase()">GUARDAR</button>
-        <button id="p-delete-btn" class="btn-main" style="background:var(--error); display:none;" onclick="deleteProduct()">ELIMINAR PRODUCTO</button>
-        <button class="btn-main" style="background:#444;" onclick="closeModal('modal-p')">CANCELAR</button>
-    </div>
+    `).join('');
+}
 
-    <div id="modal-s" class="modal">
-        <h2 style="color:var(--primary)">Registrar Salida</h2>
-        <input type="text" id="s-local" placeholder="Nombre del Local">
-        <select id="s-prod" onchange="loadSalidaSizes()"></select>
-        <select id="s-size"></select>
-        <button id="s-save-btn" class="btn-main" onclick="executeSalida()">REGISTRAR ENTREGA</button>
-        <button class="btn-main" style="background:#444;" onclick="closeModal('modal-s')">CERRAR</button>
-    </div>
+// Acción 1: El producto se vendió (Solo se borra del local)
+async function registrarVenta(id) {
+    if(confirm("¿Confirmar venta? Se quitará de la lista del local.")) {
+        await db.collection("permitidos").doc(id).delete();
+        // El sistema se actualiza solo por el onSnapshot
+    }
+}
 
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyD0ndSzE5JvgsvVdcUJa9S9yR3X_VvY8-Y",
-            authDomain: "permitidos-step.firebaseapp.com",
-            projectId: "permitidos-step",
-            storageBucket: "permitidos-step.firebasestorage.app",
-            messagingSenderId: "790890287189",
-            appId: "1:790890287189:web:f4dcac6e46765790a98075"
-        };
-
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-        let inventory = [], permitidos = [], editingId = null;
-
-        db.collection("inventory").onSnapshot(s => { inventory = s.docs.map(d => ({id: d.id, ...d.data()})); renderInventory(); });
-        db.collection("permitidos").orderBy("timestamp", "desc").onSnapshot(s => { permitidos = s.docs.map(d => ({id: d.id, ...d.data()})); renderLocales(); renderHistorial(); });
-
-        function showTab(t) {
-            ['locales', 'bodega', 'historial'].forEach(id => {
-                document.getElementById('tab-'+id).style.display = (id === t ? 'block' : 'none');
-                document.getElementById('btn-'+id).classList.toggle('active', id === t);
-            });
+// Acción 2: El producto regresa a la bodega (Suma +1 al inventario)
+async function devolverABodega(id, nombre, talla) {
+    if(confirm(`¿Reingresar ${nombre} (Talla ${talla}) a la bodega?`)) {
+        try {
+            // 1. Buscar el producto original en el inventario por nombre o referencia
+            const snap = await db.collection("inventory").where("name", "==", nombre).get();
+            
+            if(!snap.empty) {
+                const prodDoc = snap.docs[0];
+                const pData = prodDoc.data();
+                const nuevasTallas = {...pData.sizes};
+                
+                // Sumar 1 a la talla correspondiente
+                nuevasTallas[talla] = (nuevasTallas[talla] || 0) + 1;
+                
+                // 2. Actualizar bodega
+                await db.collection("inventory").doc(prodDoc.id).update({ sizes: nuevasTallas });
+                
+                // 3. Borrar de la lista de locales
+                await db.collection("permitidos").doc(id).delete();
+                
+                alert("Producto reingresado a bodega con éxito.");
+            } else {
+                alert("Error: No se encontró el producto original en bodega para devolverlo.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Error al procesar la devolución.");
         }
-
-        function openModal(id) { document.getElementById(id).style.display = 'block'; }
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-
-        function addSizeRow(sz='', qt='') {
-            const div = document.createElement('div');
-            div.style.display='flex'; div.style.gap='5px';
-            div.innerHTML = `<input type="text" placeholder="Talla" class="in-sz" value="${sz}">
-                             <input type="number" placeholder="Cant" class="in-qt" value="${qt}">
-                             <button onclick="this.parentElement.remove()" style="background:none; border:none; color:var(--error)">✕</button>`;
-            document.getElementById('p-sizes-area').appendChild(div);
-        }
-
-        function openProductModal(id = null) {
-            editingId = id;
-            const p = inventory.find(x => x.id === id);
-            document.getElementById('p-title').innerText = id ? "Editar Producto" : "Nuevo Producto";
-            document.getElementById('p-ref').value = id ? (p.ref || "") : "";
-            document.getElementById('p-nombre').value = id ? p.name : "";
-            document.getElementById('p-color').value = id ? p.color : "";
-            document.getElementById('p-costo').value = id ? p.costPrice : "";
-            document.getElementById('p-venta').value = id ? p.sellPrice : "";
-            document.getElementById('p-sizes-area').innerHTML = "";
-            document.getElementById('p-delete-btn').style.display = id ? "block" : "none";
-            if(id && p.sizes) Object.entries(p.sizes).forEach(([s, q]) => addSizeRow(s, q));
-            else addSizeRow();
-            openModal('modal-p');
-        }
-
-        async function saveToFirebase() {
-            const btn = document.getElementById('p-save-btn');
-            btn.innerText = "GUARDANDO..."; btn.disabled = true;
-            const sizes = {};
-            document.querySelectorAll('#p-sizes-area div').forEach(row => {
-                const s = row.querySelector('.in-sz').value.toUpperCase();
-                const q = parseInt(row.querySelector('.in-qt').value);
-                if(s) sizes[s] = q || 0;
-            });
-
-            const data = {
-                ref: document.getElementById('p-ref').value.toUpperCase(),
-                name: document.getElementById('p-nombre').value.toUpperCase(),
-                color: document.getElementById('p-color').value.toUpperCase(),
-                costPrice: Number(document.getElementById('p-costo').value),
-                sellPrice: Number(document.getElementById('p-venta').value),
-                sizes
-            };
-
-            if(editingId) await db.collection("inventory").doc(editingId).update(data);
-            else await db.collection("inventory").add(data);
-
-            btn.innerText = "GUARDAR"; btn.disabled = false;
-            closeModal('modal-p'); // AUTO-CIERRE
-            showTab('bodega'); // VOLVER A BODEGA
-        }
-
-        function renderInventory() {
-            const search = document.getElementById('search-box').value.toLowerCase();
-            const list = document.getElementById('inventory-list');
-            list.innerHTML = inventory.filter(p => 
-                p.name.toLowerCase().includes(search) || 
-                p.color.toLowerCase().includes(search) || 
-                (p.ref && p.ref.toLowerCase().includes(search))
-            ).map(p => `
-                <div class="card" onclick="openProductModal('${p.id}')">
-                    <div style="display:flex; justify-content:space-between">
-                        <b>${p.name}</b>
-                        <span class="ref-badge">REF: ${p.ref || '---'}</span>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px">
-                        <small>${p.color} | $${(p.sellPrice || 0).toLocaleString()}</small>
-                    </div>
-                    <div style="margin-top:8px">
-                        ${Object.entries(p.sizes || {}).map(([s,q]) => `<span style="font-size:10px; background:#333; padding:2px 6px; border-radius:4px; margin-right:4px">${s}: ${q}</span>`).join('')}
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function openSalidaModal() {
-            const select = document.getElementById('s-prod');
-            select.innerHTML = '<option value="">Elegir producto...</option>' + 
-                inventory.map(p => `<option value="${p.id}">${p.name} [${p.ref || 'S/R'}]</option>`).join('');
-            openModal('modal-s');
-        }
-
-        function loadSalidaSizes() {
-            const p = inventory.find(x => x.id === document.getElementById('s-prod').value);
-            document.getElementById('s-size').innerHTML = p ? Object.keys(p.sizes).map(s => `<option value="${s}">${s}</option>`).join('') : '';
-        }
-
-        async function executeSalida() {
-            const btn = document.getElementById('s-save-btn');
-            btn.innerText = "REGISTRANDO..."; btn.disabled = true;
-            const pId = document.getElementById('s-prod').value;
-            const p = inventory.find(x => x.id === pId);
-            const sz = document.getElementById('s-size').value;
-
-            await db.collection("permitidos").add({
-                local: document.getElementById('s-local').value.toUpperCase(),
-                name: p.name, ref: p.ref || "", size: sz, timestamp: Date.now(), date: new Date().toLocaleString()
-            });
-
-            const newSizes = {...p.sizes}; newSizes[sz] -= 1;
-            await db.collection("inventory").doc(pId).update({ sizes: newSizes });
-
-            btn.innerText = "REGISTRAR ENTREGA"; btn.disabled = false;
-            closeModal('modal-s'); // AUTO-CIERRE
-            showTab('locales'); // VOLVER A LOCALES
-        }
-
-        function renderLocales() {
-            const cont = document.getElementById('tab-locales');
-            cont.innerHTML = permitidos.map(p => `
-                <div class="card" style="border-left-color: var(--success)">
-                    <div style="display:flex; justify-content:space-between">
-                        <b>${p.local}</b>
-                        <small style="color:var(--primary)">${p.ref}</small>
-                    </div>
-                    <span>${p.name} (Talla: ${p.size})</span>
-                    <button class="btn-main" style="background:var(--success); padding:8px; font-size:10px;" onclick="db.collection('permitidos').doc('${p.id}').delete()">MARCAR VENDIDO / QUITAR</button>
-                </div>
-            `).join('');
-        }
-
-        function renderHistorial() {
-            document.getElementById('historial-list').innerHTML = permitidos.slice(0, 15).map(p => `
-                <div style="padding:10px; border-bottom:1px solid #333; font-size:12px">
-                    <span style="color:var(--primary)">${p.date}</span><br>
-                    REF: ${p.ref} | Salida a <b>${p.local}</b>: ${p.name} [Talla ${p.size}]
-                </div>
-            `).join('');
-        }
-
-        async function deleteProduct() { if(confirm("¿Seguro que quieres borrarlo?")) { await db.collection("inventory").doc(editingId).delete(); closeModal('modal-p'); } }
-    </script>
-</body>
-</html>
+    }
+}
