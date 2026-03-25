@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Monka Pro Sync</title>
+<title>Monka Pro</title>
 
 <style>
 body{margin:0;font-family:Arial;background:#0f0f0f;color:#fff}
@@ -14,7 +14,7 @@ header button{background:none;border:none;color:#d4af37;font-weight:bold}
 .card{background:#1a1a1a;padding:12px;margin:8px 0;border-radius:12px}
 input,select{width:100%;margin:5px 0;padding:10px;border-radius:6px;border:none}
 button{background:#d4af37;border:none;padding:10px;border-radius:6px}
-.fab{position:fixed;bottom:20px;right:20px;width:60px;height:60px;border-radius:50%;font-size:28px;background:#d4af37}
+.fab{position:fixed;bottom:20px;right:20px;width:60px;height:60px;border-radius:50%;font-size:28px}
 </style>
 </head>
 
@@ -32,11 +32,11 @@ button{background:#d4af37;border:none;padding:10px;border-radius:6px}
 
 <button class="fab" onclick="openModal()">+</button>
 
+<!-- MODAL -->
 <div id="modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#000a;justify-content:center;align-items:center">
 <div style="background:#111;padding:20px;width:90%;border-radius:10px">
 <h3>Producto</h3>
 <input id="nombre" placeholder="Nombre">
-<input id="ref" placeholder="REF">
 <input id="color" placeholder="Color">
 <input id="compra" type="number" placeholder="Compra">
 <input id="venta" type="number" placeholder="Venta">
@@ -52,9 +52,10 @@ button{background:#d4af37;border:none;padding:10px;border-radius:6px}
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
- getFirestore, collection, addDoc, getDocs, updateDoc, doc
+ getFirestore, collection, addDoc, onSnapshot, updateDoc, doc, deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+// 🔥 TU FIREBASE (sin login)
 const app = initializeApp({
  apiKey:"AIzaSyD0ndSzE5JvgsvVdcUJa9S9yR3X_VvY8-Y",
  authDomain:"permitidos-step.firebaseapp.com",
@@ -62,9 +63,8 @@ const app = initializeApp({
 });
 
 const db = getFirestore(app);
-
-let productos = JSON.parse(localStorage.getItem("productos")) || [];
-let ventas = JSON.parse(localStorage.getItem("ventas")) || [];
+let productos = [];
+let ventas = [];
 
 // NAV
 window.nav=(id)=>{
@@ -74,38 +74,37 @@ window.nav=(id)=>{
 
 // MODAL
 window.openModal=()=>modal.style.display='flex';
-const closeModal=()=>modal.style.display='none';
 
 // GUARDAR
 window.guardar=async()=>{
  let p={
   nombre:nombre.value,
-  ref:ref.value,
   color:color.value,
   compra:+compra.value,
   venta:+venta.value,
-  local:local.value,
-  fecha:Date.now()
+  local:local.value
  };
 
- // LOCAL
- productos.push(p);
- localStorage.setItem("productos", JSON.stringify(productos));
-
- // NUBE
  await addDoc(collection(db,"productos"),p);
-
- closeModal();
- render();
+ modal.style.display='none';
 }
 
-// SINCRONIZAR
-async function sync(){
- let snap = await getDocs(collection(db,"productos"));
+// 🔥 TIEMPO REAL (CLAVE)
+onSnapshot(collection(db,"productos"),snap=>{
  productos=[];
  snap.forEach(d=>productos.push({...d.data(),id:d.id}));
+ render();
+});
 
- localStorage.setItem("productos", JSON.stringify(productos));
+// MOVER
+window.mover=async(id,nuevo)=>{
+ await updateDoc(doc(db,"productos",id),{local:nuevo});
+}
+
+// VENDER
+window.vender=async(p)=>{
+ ventas.push(p);
+ await deleteDoc(doc(db,"productos",p.id));
  render();
 }
 
@@ -118,7 +117,7 @@ function render(){
 
 // BODEGA
 function renderBodega(){
- let html='<h2>Bodega</h2>';
+ let html="<h2>Bodega</h2>";
  productos.filter(p=>p.local==="Bodega").forEach(p=>{
   html+=`<div class="card">${p.nombre}
   <br>
@@ -131,34 +130,18 @@ function renderBodega(){
 
 // LOCALES
 function renderLocales(){
- let html='<h2>Locales</h2>';
+ let html="<h2>Locales</h2>";
  ["Oiti","Gran Sam"].forEach(l=>{
   html+=`<h3>${l}</h3>`;
   productos.filter(p=>p.local===l).forEach(p=>{
    html+=`<div class="card">${p.nombre}
-   <button onclick="vender('${p.id}',${p.venta},${p.compra})">VENDER</button>
+   <br>
+   <button onclick='vender(${JSON.stringify(p)})'>VENDER</button>
    <button onclick="mover('${p.id}','Bodega')">DEVOLVER</button>
    </div>`;
   });
  });
  locales.innerHTML=html;
-}
-
-// MOVER
-window.mover=async(id,nuevo)=>{
- let refDoc=doc(db,"productos",id);
- await updateDoc(refDoc,{local:nuevo});
- sync();
-}
-
-// VENDER
-window.vender=async(id,venta,compra)=>{
- ventas.push({venta,compra});
- localStorage.setItem("ventas", JSON.stringify(ventas));
-
- let refDoc=doc(db,"productos",id);
- await updateDoc(refDoc,{local:"VENDIDO"});
- sync();
 }
 
 // REPORTES
@@ -167,13 +150,12 @@ function renderReportes(){
  let costo=ventas.reduce((a,b)=>a+b.compra,0);
  let ganancia=total-costo;
 
- reportes.innerHTML=`<h2>Reporte</h2>
- Ventas:$${total}<br>
- Ganancia:$${ganancia}`;
+ reportes.innerHTML=`
+ <h2>Reporte</h2>
+ Ventas: $${total}<br>
+ Ganancia: $${ganancia}
+ `;
 }
-
-// INIT
-sync();
 </script>
 
 </body>
