@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Permitidos Monka - Cloud & Sync</title>
+    <title>Permitidos Monka - Inventario</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     
@@ -18,27 +18,22 @@
         .nav { display: flex; background: var(--surface); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #333; }
         .nav-btn { flex: 1; padding: 12px; border: none; background: none; color: #888; font-weight: bold; font-size: 0.7rem; }
         .nav-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
-        .mall-group { margin: 10px; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
-        .mall-header { background: #252525; padding: 10px; font-weight: bold; color: var(--primary); display: flex; justify-content: space-between; font-size: 0.9rem; }
-        .permitido-card { background: var(--surface); padding: 12px; border-bottom: 1px solid #333; }
         .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 8px; background: #000; }
-        .stat-box { text-align: center; font-size: 0.7rem; padding: 5px; border-radius: 5px; background: #111; }
+        .stat-box { text-align: center; font-size: 0.65rem; padding: 5px; border-radius: 5px; background: #111; }
         .fab { position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px; border-radius: 28px; background: var(--primary); border: none; font-size: 24px; z-index: 100; color: black; font-weight: bold;}
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; padding: 20px; overflow-y: auto; }
-        label { display: block; margin-top: 12px; color: var(--primary); font-size: 0.8rem; }
+        label { display: block; margin-top: 12px; color: var(--primary); font-size: 0.8rem; font-weight: bold; }
         input, select { width: 100%; padding: 12px; margin-top: 5px; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 8px; box-sizing: border-box; }
-        .btn-main { width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; }
+        .btn-main { width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; text-transform: uppercase; }
         .btn-status { flex: 1; padding: 10px; border: none; border-radius: 6px; color: white; font-weight: bold; margin: 5px; font-size: 0.7rem; }
-        .btn-ws { background: #25d366; color: white; border: none; padding: 5px 10px; border-radius: 5px; font-size: 0.7rem; font-weight: bold; margin-top: 5px; display: inline-flex; align-items: center; gap: 5px; }
-        .notification-toast { position: fixed; top: 20px; left: 10px; right: 10px; background: var(--info); color: white; padding: 15px; border-radius: 10px; z-index: 2000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); animation: slideDown 0.5s; }
-        @keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+        .btn-cancel { background: #444; color: white; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // TU CONFIGURACIÓN DE FIREBASE (Mantenemos la misma bodega de datos)
+        // Tu configuración de Firebase
         const firebaseConfig = {
           apiKey: "AIzaSyD0ndSzE5JvgsvVdcUJa9S9yR3X_VvY8-Y",
           authDomain: "permitidos-step.firebaseapp.com",
@@ -54,57 +49,24 @@
         const { useState, useEffect } = React;
 
         function App() {
-            const [tab, setTab] = useState('permitidos');
-            const [showAdd, setShowAdd] = useState(false);
+            const [tab, setTab] = useState('inventario');
             const [showInvForm, setShowInvForm] = useState(false);
             const [inventory, setInventory] = useState([]);
-            const [permitidos, setPermitidos] = useState([]);
-            const [history, setHistory] = useState([]);
-            const [malls, setMalls] = useState(["OITI", "GRAN SAM", "IMPERIO", "MINITIENDAS"]);
-            const [loading, setLoading] = useState(true);
-            const [toast, setToast] = useState(null);
 
             useEffect(() => {
-                const unsubInv = db.collection("inventory").onSnapshot(snap => {
+                const unsub = db.collection("inventory").onSnapshot(snap => {
                     setInventory(snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
                 });
-                
-                // Escuchador de Permitidos con Notificación
-                const unsubPerm = db.collection("permitidos").onSnapshot(snap => {
-                    setPermitidos(snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
-                });
-
-                // Escuchador de Historial (Notifica cuando se vende algo)
-                const unsubHist = db.collection("history").orderBy("closedAt", "desc").limit(1).onSnapshot(snap => {
-                    if (!snap.empty && !loading) {
-                        const lastSale = snap.docs[0].data();
-                        showNotification(`💰 ¡Venta Registrada! ${lastSale.ref} en ${lastSale.mall}`);
-                    }
-                    // Cargar historial completo para el listado
-                    db.collection("history").orderBy("closedAt", "desc").limit(50).get().then(s => {
-                        setHistory(s.docs.map(d => d.data()));
-                        setLoading(false);
-                    });
-                });
-
-                return () => { unsubInv(); unsubPerm(); unsubHist(); };
-            }, [loading]);
-
-            const showNotification = (msg) => {
-                setToast(msg);
-                setTimeout(() => setToast(null), 4000); // Ocultar después de 4 segundos
-            };
-
-            const sendWhatsApp = (h) => {
-                const text = `*REPORTE DE VENTA - PERMITIDOS MONKA*%0A------------------------------------%0A📍 *CC:* ${h.mall}%0A🏠 *Local:* ${h.local}%0A📦 *Producto:* ${h.ref}%0A🔢 *Cantidad:* ${h.qty}%0A💵 *Precio Venta:* $${h.sellPrice.toLocaleString()}%0A📈 *Ganancia:* $${h.profit.toLocaleString()}%0A📅 *Fecha:* ${h.closedAt}`;
-                window.open(`https://wa.me/?text=${text}`, '_blank');
-            };
+                return () => unsub();
+            }, []);
 
             const addProduct = async (e) => {
                 e.preventDefault();
                 const f = e.target;
                 await db.collection("inventory").add({
+                    name: f.prodName.value.toUpperCase(),
                     ref: f.ref.value.toUpperCase(),
+                    color: f.color.value.toUpperCase(),
                     buyPrice: parseFloat(f.buyPrice.value),
                     sellPrice: parseFloat(f.sellPrice.value),
                     stock: parseInt(f.stock.value)
@@ -113,137 +75,61 @@
                 f.reset();
             };
 
-            const deliverProduct = async (e) => {
-                e.preventDefault();
-                const f = e.target;
-                const qty = parseInt(f.qty.value);
-                const prod = inventory.find(p => p.ref === f.ref.value);
-                
-                await db.collection("permitidos").add({
-                    mall: f.mall.value, local: f.local.value, ref: f.ref.value,
-                    qty, sellPrice: prod.sellPrice, buyPrice: prod.buyPrice,
-                    date: new Date().toLocaleDateString()
-                });
-                await db.collection("inventory").doc(prod.id).update({ stock: prod.stock - qty });
-                setShowAdd(false);
-                f.reset();
-            };
-
-            const resolveStatus = async (item, status) => {
-                if (status === 'sold') {
-                    const profit = (item.sellPrice - item.buyPrice) * item.qty;
-                    await db.collection("history").add({
-                        ...item, status: 'sold', profit, closedAt: new Date().toLocaleString()
-                    });
-                } else {
-                    const prod = inventory.find(p => p.ref === item.ref);
-                    await db.collection("inventory").doc(prod.id).update({ stock: prod.stock + item.qty });
-                }
-                await db.collection("permitidos").doc(item.id).delete();
-            };
-
-            if(loading) return <div style={{padding:20, textAlign:'center'}}>Cargando Permitidos Monka...</div>;
-
             return (
                 <div>
-                    {toast && <div className="notification-toast">{toast}</div>}
                     <div className="header"><h1>PERMITIDOS MONKA ☁️</h1></div>
                     <div className="nav">
-                        <button className={`nav-btn ${tab === 'permitidos' ? 'active' : ''}`} onClick={() => setTab('permitidos')}>PERMITIDOS</button>
-                        <button className={`nav-btn ${tab === 'inventario' ? 'active' : ''}`} onClick={() => setTab('inventario')}>INVENTARIO</button>
-                        <button className={`nav-btn ${tab === 'cierre' ? 'active' : ''}`} onClick={() => setTab('cierre')}>HISTORIAL</button>
+                        <button className="nav-btn">PERMITIDOS</button>
+                        <button className="nav-btn active">INVENTARIO</button>
+                        <button className="nav-btn">HISTORIAL</button>
                     </div>
 
                     <div className="stats-bar">
-                        <div className="stat-box">En locales: <br/><b>{permitidos.length}</b></div>
-                        <div className="stat-box">Ganancia Hoy:<br/><b style={{color:'#4caf50'}}>${history.filter(h => h.closedAt.includes(new Date().toLocaleDateString())).reduce((t, h) => t + h.profit, 0).toLocaleString()}</b></div>
+                        <div className="stat-box">En locales:<br/><b>0</b></div>
+                        <div className="stat-box">Ganancia Hoy:<br/><b style={{color:'#4caf50'}}>$0</b></div>
                         <div className="stat-box">Stock Bodega:<br/><b>{inventory.reduce((a,b)=>a+b.stock,0)}</b></div>
                     </div>
 
-                    {tab === 'permitidos' && (
-                        <div>
-                            {malls.map(m => {
-                                const items = permitidos.filter(p => p.mall === m);
-                                if(items.length === 0) return null;
-                                return (
-                                    <div key={m} className="mall-group">
-                                        <div className="mall-header">📍 {m}</div>
-                                        {items.map(p => (
-                                            <div key={p.id} className="permitido-card">
-                                                <b>Local: {p.local}</b> - {p.qty} un. <br/>
-                                                <small>{p.ref} - ${p.sellPrice.toLocaleString()}</small>
-                                                <div style={{display:'flex', marginTop:10}}>
-                                                    <button className="btn-status" style={{background: 'var(--success)'}} onClick={() => resolveStatus(p, 'sold')}>COBRAR VENTA</button>
-                                                    <button className="btn-status" style={{background: 'var(--error)'}} onClick={() => resolveStatus(p, 'returned')}>DEVOLUCIÓN</button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
-
-                    {tab === 'inventario' && (
-                        <div style={{padding:10}}>
-                            <button className="btn-main" onClick={() => setShowInvForm(true)}>+ NUEVO PRODUCTO</button>
-                            {inventory.map(p => (
-                                <div key={p.id} style={{background: 'var(--surface)', padding:15, margin:'10px 0', borderRadius:8, display:'flex', justifyContent:'space-between'}}>
-                                    <div><b>{p.ref}</b><br/><small>Stock: {p.stock}</small></div>
-                                    <div style={{textAlign:'right'}}>
-                                        <div style={{color: 'var(--primary)'}}>${p.sellPrice.toLocaleString()}</div>
-                                        <button onClick={async () => {const n = prompt("Nuevo stock:"); if(n) await db.collection("inventory").doc(p.id).update({stock: parseInt(n)})}} style={{fontSize:'0.6rem', background:'none', color:'#888', border:'1px solid #444', marginTop:5}}>EDITAR STOCK</button>
-                                    </div>
+                    <div style={{padding:10}}>
+                        <button className="btn-main" onClick={() => setShowInvForm(true)}>+ AGREGAR PRODUCTO</button>
+                        {inventory.map(p => (
+                            <div key={p.id} style={{background: 'var(--surface)', padding:15, margin:'10px 0', borderRadius:8, borderLeft: '4px solid var(--primary)'}}>
+                                <b>{p.name}</b><br/>
+                                <small>Color: {p.color} | Ref: {p.ref}</small><br/>
+                                <div style={{marginTop: 5, display:'flex', justifyContent:'space-between'}}>
+                                    <span>Stock: {p.stock}</span>
+                                    <span style={{color: 'var(--primary)'}}>${p.sellPrice.toLocaleString()}</span>
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                            </div>
+                        ))}
+                    </div>
 
-                    {tab === 'cierre' && (
-                        <div style={{padding:15}}>
-                            <h3>Últimos Movimientos</h3>
-                            {history.map((h, i) => (
-                                <div key={i} style={{background: '#222', padding: '12px', marginBottom: '10px', borderRadius: '8px', borderLeft: '4px solid #25d366'}}>
-                                    <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.7rem', color:'#aaa'}}>
-                                        <span>{h.closedAt}</span>
-                                        <span style={{color:'#4caf50', fontWeight:'bold'}}>+$ {h.profit.toLocaleString()}</span>
-                                    </div>
-                                    <div style={{margin:'5px 0'}}><strong>{h.ref}</strong> - {h.mall} ({h.local})</div>
-                                    <button className="btn-ws" onClick={() => sendWhatsApp(h)}>📱 ENVIAR REPORTE</button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    <button className="fab" onClick={() => setShowAdd(true)}>+</button>
-
-                    {showAdd && (
-                        <div className="modal">
-                            <h3>Registrar Entrega</h3>
-                            <form onSubmit={deliverProduct}>
-                                <label>Centro Comercial:</label>
-                                <select name="mall">{malls.map(m => <option key={m} value={m}>{m}</option>)}</select>
-                                <button type="button" onClick={() => {const n = prompt("Nombre CC:"); if(n) setMalls([...malls, n.toUpperCase()])}} style={{fontSize: '0.7rem', background: 'none', color: 'var(--primary)', border: 'none', padding: '5px'}}>+ Crear nuevo CC</button>
-                                <label>Local:</label><input name="local" placeholder="Ej: Pasillo 2" required />
-                                <label>Producto:</label>
-                                <select name="ref">{inventory.map(i => <option key={i.ref} value={i.ref}>{i.ref} (Disp: {i.stock})</option>)}</select>
-                                <label>Cantidad:</label><input name="qty" type="number" defaultValue="1" required />
-                                <button type="submit" className="btn-main">CONFIRMAR SALIDA</button>
-                                <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowAdd(false)}>CERRAR</button>
-                            </form>
-                        </div>
-                    )}
+                    <button className="fab" onClick={() => setShowInvForm(true)}>+</button>
 
                     {showInvForm && (
                         <div className="modal">
-                            <h3>Nuevo Producto</h3>
+                            <h2>Nuevo Producto</h2>
                             <form onSubmit={addProduct}>
-                                <label>Referencia:</label><input name="ref" required />
-                                <label>Precio Compra (Costo):</label><input name="buyPrice" type="number" required />
-                                <label>Precio Venta:</label><input name="sellPrice" type="number" required />
-                                <label>Stock Inicial:</label><input name="stock" type="number" required />
+                                <label>Nombre del Producto:</label>
+                                <input name="prodName" placeholder="Ej: Nike Jordan" required />
+                                
+                                <label>Referencia:</label>
+                                <input name="ref" placeholder="Ej: REF-001" required />
+                                
+                                <label>Color:</label>
+                                <input name="color" placeholder="Ej: Blanco/Negro" required />
+                                
+                                <label>Precio Compra (Costo):</label>
+                                <input name="buyPrice" type="number" required />
+                                
+                                <label>Precio Venta:</label>
+                                <input name="sellPrice" type="number" required />
+                                
+                                <label>Stock Inicial:</label>
+                                <input name="stock" type="number" required />
+                                
                                 <button type="submit" className="btn-main">GUARDAR</button>
-                                <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowInvForm(false)}>CANCELAR</button>
+                                <button type="button" className="btn-main btn-cancel" onClick={()=>setShowInvForm(false)}>CANCELAR</button>
                             </form>
                         </div>
                     )}
