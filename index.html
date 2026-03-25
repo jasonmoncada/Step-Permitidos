@@ -1,8 +1,11 @@
-<!DOCTYPE html><html lang="es">
+<!DOCTYPE html>
+<html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Monka Pro 4.0</title><style>
+<title>Monka Pro Sync</title>
+
+<style>
 body{margin:0;font-family:Arial;background:#0f0f0f;color:#fff}
 header{display:flex;justify-content:space-around;background:#111;padding:10px}
 header button{background:none;border:none;color:#d4af37;font-weight:bold}
@@ -12,21 +15,22 @@ header button{background:none;border:none;color:#d4af37;font-weight:bold}
 input,select{width:100%;margin:5px 0;padding:10px;border-radius:6px;border:none}
 button{background:#d4af37;border:none;padding:10px;border-radius:6px}
 .fab{position:fixed;bottom:20px;right:20px;width:60px;height:60px;border-radius:50%;font-size:28px;background:#d4af37}
-</style></head>
-<body><header id="menu" style="display:none">
+</style>
+</head>
+
+<body>
+
+<header>
 <button onclick="nav('bodega')">BODEGA</button>
 <button onclick="nav('locales')">LOCALES</button>
 <button onclick="nav('reportes')">REPORTES</button>
-<button onclick="nav('dashboard')">DASH</button>
-</header><div id="login" class="section active">
-<h2>Login</h2>
-<input id="email" placeholder="Correo">
-<input id="password" type="password" placeholder="Contraseña">
-<button onclick="login()">Ingresar</button>
-</div><div id="bodega" class="section"></div>
+</header>
+
+<div id="bodega" class="section active"></div>
 <div id="locales" class="section"></div>
 <div id="reportes" class="section"></div>
-<div id="dashboard" class="section"></div><button class="fab" onclick="openModal()" id="fab" style="display:none">+</button>
+
+<button class="fab" onclick="openModal()">+</button>
 
 <div id="modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:#000a;justify-content:center;align-items:center">
 <div style="background:#111;padding:20px;width:90%;border-radius:10px">
@@ -36,14 +40,20 @@ button{background:#d4af37;border:none;padding:10px;border-radius:6px}
 <input id="color" placeholder="Color">
 <input id="compra" type="number" placeholder="Compra">
 <input id="venta" type="number" placeholder="Venta">
-<input id="tallas" placeholder="S:2,M:3">
-<select id="localSelect"></select>
-<button onclick="guardarProducto()">Guardar</button>
+<select id="local">
+<option value="Bodega">Bodega</option>
+<option value="Oiti">Oiti</option>
+<option value="Gran Sam">Gran Sam</option>
+</select>
+<button onclick="guardar()">Guardar</button>
 </div>
-</div><script type="module">
+</div>
+
+<script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import {
+ getFirestore, collection, addDoc, getDocs, updateDoc, doc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const app = initializeApp({
  apiKey:"AIzaSyD0ndSzE5JvgsvVdcUJa9S9yR3X_VvY8-Y",
@@ -51,108 +61,120 @@ const app = initializeApp({
  projectId:"permitidos-step"
 });
 
-const auth = getAuth(app);
 const db = getFirestore(app);
 
-let productos=[];
-let ventas=[];
-let locales=['Oiti','Gran Sam'];
+let productos = JSON.parse(localStorage.getItem("productos")) || [];
+let ventas = JSON.parse(localStorage.getItem("ventas")) || [];
 
-window.login=async()=>{
- try{
-  await signInWithEmailAndPassword(auth,email.value,password.value);
-  login.style.display='none';
-  menu.style.display='flex';
-  fab.style.display='block';
-  nav('bodega');
-  cargar();
- }catch(e){alert('Error login');}
-}
-
+// NAV
 window.nav=(id)=>{
  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
  document.getElementById(id).classList.add('active');
 }
 
-window.openModal=()=>{
- modal.style.display='flex';
- localSelect.innerHTML=locales.map(l=>`<option>${l}</option>`).join('');
-}
-
+// MODAL
+window.openModal=()=>modal.style.display='flex';
 const closeModal=()=>modal.style.display='none';
 
-function parseTallas(txt){
- let o={};
- txt.split(',').forEach(x=>{
-  let [t,c]=x.split(':');
-  o[t]=Number(c);
- });
- return o;
-}
-
-window.guardarProducto=async()=>{
+// GUARDAR
+window.guardar=async()=>{
  let p={
   nombre:nombre.value,
   ref:ref.value,
   color:color.value,
   compra:+compra.value,
   venta:+venta.value,
-  tallas:parseTallas(tallas.value),
-  local:localSelect.value
+  local:local.value,
+  fecha:Date.now()
  };
- await addDoc(collection(db,'productos'),p);
- closeModal();
- cargar();
-}
 
-async function cargar(){
- let snap=await getDocs(collection(db,'productos'));
- productos=[];
- snap.forEach(d=>productos.push({...d.data(),id:d.id}));
+ // LOCAL
+ productos.push(p);
+ localStorage.setItem("productos", JSON.stringify(productos));
+
+ // NUBE
+ await addDoc(collection(db,"productos"),p);
+
+ closeModal();
  render();
 }
 
+// SINCRONIZAR
+async function sync(){
+ let snap = await getDocs(collection(db,"productos"));
+ productos=[];
+ snap.forEach(d=>productos.push({...d.data(),id:d.id}));
+
+ localStorage.setItem("productos", JSON.stringify(productos));
+ render();
+}
+
+// RENDER
 function render(){
  renderBodega();
  renderLocales();
  renderReportes();
- renderDashboard();
 }
 
+// BODEGA
 function renderBodega(){
  let html='<h2>Bodega</h2>';
- productos.forEach(p=>{
-  html+=`<div class="card">${p.nombre} (${p.local})</div>`;
+ productos.filter(p=>p.local==="Bodega").forEach(p=>{
+  html+=`<div class="card">${p.nombre}
+  <br>
+  <button onclick="mover('${p.id}','Oiti')">Oiti</button>
+  <button onclick="mover('${p.id}','Gran Sam')">Gran Sam</button>
+  </div>`;
  });
  bodega.innerHTML=html;
 }
 
+// LOCALES
 function renderLocales(){
  let html='<h2>Locales</h2>';
- locales.forEach(l=>{
+ ["Oiti","Gran Sam"].forEach(l=>{
   html+=`<h3>${l}</h3>`;
-  productos.filter(p=>p.local==l).forEach(p=>{
-   html+=`<div class="card">${p.nombre} <button onclick="vender(${p.venta},${p.compra})">Vender</button></div>`;
+  productos.filter(p=>p.local===l).forEach(p=>{
+   html+=`<div class="card">${p.nombre}
+   <button onclick="vender('${p.id}',${p.venta},${p.compra})">VENDER</button>
+   <button onclick="mover('${p.id}','Bodega')">DEVOLVER</button>
+   </div>`;
   });
  });
  locales.innerHTML=html;
 }
 
-window.vender=(v,c)=>{
- ventas.push({venta:v,compra:c});
- render();
+// MOVER
+window.mover=async(id,nuevo)=>{
+ let refDoc=doc(db,"productos",id);
+ await updateDoc(refDoc,{local:nuevo});
+ sync();
 }
 
+// VENDER
+window.vender=async(id,venta,compra)=>{
+ ventas.push({venta,compra});
+ localStorage.setItem("ventas", JSON.stringify(ventas));
+
+ let refDoc=doc(db,"productos",id);
+ await updateDoc(refDoc,{local:"VENDIDO"});
+ sync();
+}
+
+// REPORTES
 function renderReportes(){
  let total=ventas.reduce((a,b)=>a+b.venta,0);
  let costo=ventas.reduce((a,b)=>a+b.compra,0);
  let ganancia=total-costo;
- reportes.innerHTML=`<h2>Reporte</h2>Ventas:$${total}<br>Ganancia:$${ganancia}`;
+
+ reportes.innerHTML=`<h2>Reporte</h2>
+ Ventas:$${total}<br>
+ Ganancia:$${ganancia}`;
 }
 
-function renderDashboard(){
- dashboard.innerHTML=`<h2>Dashboard</h2>Total ventas: ${ventas.length}`;
-}
+// INIT
+sync();
+</script>
 
-</script></body>
+</body>
 </html>
