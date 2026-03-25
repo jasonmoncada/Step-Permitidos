@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Permitidos Monka - Control Total</title>
+    <title>Permitidos Monka - Sistema Completo</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -17,17 +17,23 @@
         .nav { display: flex; background: var(--surface); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #333; }
         .nav-btn { flex: 1; padding: 12px; border: none; background: none; color: #888; font-weight: bold; font-size: 0.7rem; }
         .nav-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
+        .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 8px; background: #000; }
+        .stat-box { text-align: center; font-size: 0.6rem; padding: 5px; border-radius: 5px; background: #111; }
+        .stat-val { display: block; font-size: 0.8rem; font-weight: bold; margin-top: 2px; }
         .filter-bar { display: flex; gap: 5px; overflow-x: auto; padding: 10px; background: #151515; }
         .filter-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid #444; background: #222; color: #aaa; font-size: 0.65rem; white-space: nowrap; }
         .filter-btn.active { background: var(--primary); color: black; border-color: var(--primary); }
         .card { background: var(--surface); padding: 15px; margin: 10px; border-radius: 8px; border-left: 4px solid var(--primary); position: relative; }
         .size-tag { background: #333; padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; border: 1px solid #444; display: inline-block; margin-top: 5px; }
-        .low-stock { color: var(--error); border-color: var(--error); font-weight: bold; }
+        .low-stock { color: var(--error); border-color: var(--error); font-weight: bold; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
         .btn-del { position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--error); font-size: 1.2rem; cursor: pointer; }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; padding: 20px; overflow-y: auto; }
+        label { display: block; margin-top: 12px; color: var(--primary); font-size: 0.75rem; font-weight: bold; }
         input, select { width: 100%; padding: 12px; margin-top: 5px; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 8px; box-sizing: border-box; }
         .btn-main { width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; text-transform: uppercase; }
         .btn-status { flex: 1; padding: 10px; border: none; border-radius: 6px; color: white; font-weight: bold; margin: 5px; font-size: 0.7rem; }
+        .fab { position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px; border-radius: 28px; background: var(--primary); border: none; font-size: 24px; z-index: 100; color: black; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
     </style>
 </head>
 <body>
@@ -57,6 +63,7 @@
             const [malls] = useState(["OITI", "GRAN SAM", "IMPERIO", "MINITIENDAS"]);
             const [filterMall, setFilterMall] = useState('TODOS');
             const [showInvForm, setShowInvForm] = useState(false);
+            const [showAddPermitido, setShowAddPermitido] = useState(false);
             const [showEditStock, setShowEditStock] = useState(null);
             const [sizesInput, setSizesInput] = useState([{ size: '', qty: '' }]);
 
@@ -65,6 +72,33 @@
                 db.collection("permitidos").onSnapshot(s => setPermitidos(s.docs.map(d => ({id: d.id, ...d.data()}))));
                 db.collection("history").orderBy("closedAt", "desc").limit(50).onSnapshot(s => setHistory(s.docs.map(d => d.data())));
             }, []);
+
+            const addProduct = async (e) => {
+                e.preventDefault();
+                const f = e.target;
+                const sMap = {};
+                sizesInput.forEach(s => { if(s.size) sMap[s.size.toUpperCase()] = parseInt(s.qty) || 0; });
+                await db.collection("inventory").add({
+                    name: f.n.value.toUpperCase(), ref: f.r.value.toUpperCase(), color: f.c.value.toUpperCase(),
+                    buyPrice: parseFloat(f.bp.value), sellPrice: parseFloat(f.sp.value), sizes: sMap
+                });
+                setShowInvForm(false); setSizesInput([{size:'', qty:''}]); f.reset();
+            };
+
+            const deliverProduct = async (e) => {
+                e.preventDefault();
+                const f = e.target;
+                const p = inventory.find(i => i.id === f.pId.value);
+                const q = parseInt(f.q.value);
+                const sz = f.sz.value;
+                await db.collection("permitidos").add({
+                    mall: f.m.value, local: f.l.value, name: p.name, ref: p.ref, color: p.color, size: sz,
+                    qty: q, sellPrice: p.sellPrice, buyPrice: p.buyPrice, date: new Date().toLocaleDateString()
+                });
+                const newS = {...p.sizes}; newS[sz] -= q;
+                await db.collection("inventory").doc(p.id).update({ sizes: newS });
+                setShowAddPermitido(false);
+            };
 
             const resolveStatus = async (item, status) => {
                 if (status === 'sold') {
@@ -76,7 +110,16 @@
                 await db.collection("permitidos").doc(item.id).delete();
             };
 
+            const updateStock = async (e) => {
+                e.preventDefault();
+                const newS = {};
+                new FormData(e.target).forEach((v, k) => { if(k.startsWith('sz_')) newS[k.replace('sz_', '')] = parseInt(v) || 0; });
+                await db.collection("inventory").doc(showEditStock.id).update({ sizes: newS });
+                setShowEditStock(null);
+            };
+
             const historyFiltered = filterMall === 'TODOS' ? history : history.filter(h => h.mall === filterMall);
+            const gananciaHoy = history.filter(h => h.closedAt.includes(new Date().toLocaleDateString())).reduce((t, h) => t + h.profit, 0);
 
             return (
                 <div>
@@ -85,6 +128,12 @@
                         <button className={`nav-btn ${tab === 'permitidos' ? 'active' : ''}`} onClick={() => setTab('permitidos')}>LOCALES</button>
                         <button className={`nav-btn ${tab === 'inventario' ? 'active' : ''}`} onClick={() => setTab('inventario')}>BODEGA</button>
                         <button className={`nav-btn ${tab === 'historial' ? 'active' : ''}`} onClick={() => setTab('historial')}>HISTORIAL</button>
+                    </div>
+
+                    <div className="stats-bar">
+                        <div className="stat-box">En locales<span className="stat-val">{permitidos.length}</span></div>
+                        <div className="stat-box">Ganancia Hoy<span className="stat-val" style={{color:'#4caf50'}}>{fCurrency(gananciaHoy)}</span></div>
+                        <div className="stat-box">Stock Bodega<span className="stat-val">{inventory.reduce((a,b)=>a + Object.values(b.sizes).reduce((x,y)=>x+y,0),0)}</span></div>
                     </div>
 
                     {tab === 'permitidos' && (
@@ -97,7 +146,8 @@
                                         <div style={{color:'var(--primary)', fontWeight:'bold', marginBottom:10}}>📍 {m}</div>
                                         {items.map(p => (
                                             <div key={p.id} style={{borderBottom:'1px solid #333', padding:'10px 0'}}>
-                                                <b>{p.local}</b> - {p.name} ({p.size})
+                                                <b>{p.local}</b> - {p.name} ({p.color})<br/>
+                                                <small>Talla: {p.size} | Cant: {p.qty} | {fCurrency(p.sellPrice)}</small>
                                                 <div style={{display:'flex', marginTop:10}}>
                                                     <button className="btn-status" style={{background:'var(--success)'}} onClick={() => resolveStatus(p, 'sold')}>VENDIDO</button>
                                                     <button className="btn-status" style={{background:'var(--error)'}} onClick={() => resolveStatus(p, 'returned')}>DEVUELTO</button>
@@ -115,15 +165,16 @@
                             <button className="btn-main" onClick={() => setShowInvForm(true)}>+ NUEVO PRODUCTO</button>
                             {inventory.map(p => (
                                 <div key={p.id} className="card">
-                                    <button className="btn-del" onClick={async () => {if(confirm("¿Borrar?")) await db.collection("inventory").doc(p.id).delete()}}>🗑️</button>
+                                    <button className="btn-del" onClick={async () => {if(confirm("¿Borrar de bodega?")) await db.collection("inventory").doc(p.id).delete()}}>🗑️</button>
                                     <div onClick={() => setShowEditStock(p)}>
-                                        <b>{p.name}</b> <span style={{float:'right'}}>{fCurrency(p.sellPrice)}</span><br/>
+                                        <b>{p.name}</b> <span style={{float:'right', color:'var(--primary)'}}>{fCurrency(p.sellPrice)}</span><br/>
                                         <small>{p.color} | Ref: {p.ref}</small>
                                         <div style={{marginTop:8}}>
                                             {Object.entries(p.sizes).map(([s, q]) => (
                                                 <span key={s} className={`size-tag ${q <= 2 ? 'low-stock' : ''}`}>{s}: {q}</span>
                                             ))}
                                         </div>
+                                        <div style={{fontSize:'0.6rem', color:'#888', marginTop:5}}>✎ Toca para editar cantidades</div>
                                     </div>
                                 </div>
                             ))}
@@ -141,58 +192,65 @@
                             <div style={{padding:10}}>
                                 {historyFiltered.map((h, i) => (
                                     <div key={i} className="card" style={{borderLeftColor:'#25d366'}}>
-                                        <small style={{color:'#aaa'}}>{h.closedAt}</small><br/>
-                                        <strong>{h.name}</strong> ({h.size}) - {h.mall}<br/>
-                                        <span style={{color:'#25d366'}}>Ganancia: {fCurrency(h.profit)}</span>
-                                        <button className="btn-status" style={{background:'#25d366', marginTop:10, width:'100%'}} onClick={() => window.open(`https://wa.me/?text=*REPORTE VENTAS*%0A📍 ${h.mall}%0A📦 ${h.name}%0A📏 Talla: ${h.size}%0A💵 ${fCurrency(h.sellPrice)}`, '_blank')}>WHATSAPP</button>
+                                        <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.6rem', color:'#aaa'}}><span>{h.closedAt}</span><span style={{color:'#4caf50'}}>+{fCurrency(h.profit)}</span></div>
+                                        <div style={{margin:'5px 0'}}><strong>{h.name}</strong> ({h.size}) - {h.mall}</div>
+                                        <button className="btn-status" style={{background:'#25d366', marginTop:5, width:'100%'}} onClick={() => window.open(`https://wa.me/?text=*REPORTE MONKA*%0A📍 CC: ${h.mall}%0A📦: ${h.name}%0A📏 Talla: ${h.size}%0A💵 Valor: ${fCurrency(h.sellPrice)}`, '_blank')}>ENVIAR WHATSAPP</button>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     )}
 
+                    <button className="fab" onClick={() => setShowAddPermitido(true)}>+</button>
+
+                    {showAddPermitido && (
+                        <div className="modal">
+                            <h3>Registrar Salida a Local</h3>
+                            <form onSubmit={deliverProduct}>
+                                <label>Centro Comercial:</label><select name="m">{malls.map(m => <option key={m} value={m}>{m}</option>)}</select>
+                                <label>Nombre del Local:</label><input name="l" required />
+                                <label>Producto:</label>
+                                <select name="pId" required onChange={(e) => {
+                                    const p = inventory.find(i => i.id === e.target.value);
+                                    window.currentSizes = p ? Object.keys(p.sizes).filter(s => p.sizes[s] > 0) : [];
+                                    setTab(tab); 
+                                }}>
+                                    <option value="">Seleccione...</option>
+                                    {inventory.map(i => <option key={i.id} value={i.id}>{i.name} - {i.color}</option>)}
+                                </select>
+                                <label>Talla:</label><select name="sz">{(window.currentSizes || []).map(s => <option key={s} value={s}>{s}</option>)}</select>
+                                <label>Cantidad:</label><input name="q" type="number" defaultValue="1" required />
+                                <button type="submit" className="btn-main">ENTREGAR</button>
+                                <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowAddPermitido(false)}>CERRAR</button>
+                            </form>
+                        </div>
+                    )}
+
                     {showEditStock && (
                         <div className="modal">
                             <h3>Editar Stock: {showEditStock.name}</h3>
-                            <form onSubmit={async (e) => {
-                                e.preventDefault();
-                                const newS = {};
-                                new FormData(e.target).forEach((v, k) => { if(k.startsWith('sz_')) newS[k.replace('sz_', '')] = parseInt(v) || 0; });
-                                await db.collection("inventory").doc(showEditStock.id).update({ sizes: newS });
-                                setShowEditStock(null);
-                            }}>
+                            <form onSubmit={updateStock}>
                                 {Object.keys(showEditStock.sizes).map(s => (
                                     <div key={s}><label>Talla {s}:</label><input name={`sz_${s}`} type="number" defaultValue={showEditStock.sizes[s]} /></div>
                                 ))}
-                                <button type="submit" className="btn-main">GUARDAR</button>
+                                <button type="submit" className="btn-main">GUARDAR CAMBIOS</button>
                                 <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowEditStock(null)}>CANCELAR</button>
                             </form>
                         </div>
                     )}
-                    
-                    {/* El modal de Nuevo Producto se mantiene igual al anterior */}
+
                     {showInvForm && (
                         <div className="modal">
-                            <h3>Nuevo Producto</h3>
-                            <form onSubmit={async (e) => {
-                                e.preventDefault();
-                                const f = e.target;
-                                const sMap = {};
-                                sizesInput.forEach(s => { if(s.size) sMap[s.size.toUpperCase()] = parseInt(s.qty) || 0; });
-                                await db.collection("inventory").add({
-                                    name: f.n.value.toUpperCase(), ref: f.r.value.toUpperCase(), color: f.c.value.toUpperCase(),
-                                    buyPrice: parseFloat(f.bp.value), sellPrice: parseFloat(f.sp.value), sizes: sMap
-                                });
-                                setShowInvForm(false); setSizesInput([{size:'', qty:''}]);
-                            }}>
-                                <label>Nombre:</label><input name="n" required />
-                                <label>Ref:</label><input name="r" required />
+                            <h3>Nuevo Producto en Bodega</h3>
+                            <form onSubmit={addProduct}>
+                                <label>Nombre:</label><input name="n" placeholder="EJ: NIKE AIR JORDAN" required />
+                                <label>Referencia:</label><input name="r" required />
                                 <label>Color:</label><input name="c" required />
                                 <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
-                                    <input name="bp" type="number" placeholder="Costo" required />
-                                    <input name="sp" type="number" placeholder="Venta" required />
+                                    <div><label>Costo COP:</label><input name="bp" type="number" required /></div>
+                                    <div><label>Venta COP:</label><input name="sp" type="number" required /></div>
                                 </div>
-                                <label>Tallas Iniciales:</label>
+                                <label>Tallas y Cantidades:</label>
                                 {sizesInput.map((s, i) => (
                                     <div key={i} style={{display:'flex', gap:5, marginBottom:5}}>
                                         <input placeholder="Talla" value={s.size} onChange={e => { const n = [...sizesInput]; n[i].size = e.target.value; setSizesInput(n); }} />
@@ -200,8 +258,8 @@
                                     </div>
                                 ))}
                                 <button type="button" onClick={() => setSizesInput([...sizesInput, {size:'', qty:''}])} style={{background:'none', color:'var(--primary)', border:'1px dashed #d4af37', padding:10, width:'100%', borderRadius:8}}>+ Añadir talla</button>
-                                <button type="submit" className="btn-main">CREAR</button>
-                                <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowInvForm(false)}>CERRAR</button>
+                                <button type="submit" className="btn-main">CREAR PRODUCTO</button>
+                                <button type="button" className="btn-main" style={{background:'#444', marginTop:10}} onClick={()=>setShowInvForm(false)}>CANCELAR</button>
                             </form>
                         </div>
                     )}
