@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Permitidos Monka - Edición Total</title>
+    <title>Permitidos Monka - Control Total</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -17,13 +17,13 @@
         .nav { display: flex; background: var(--surface); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #333; }
         .nav-btn { flex: 1; padding: 12px; border: none; background: none; color: #888; font-weight: bold; font-size: 0.7rem; }
         .nav-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
-        .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 8px; background: #000; }
-        .stat-box { text-align: center; font-size: 0.6rem; padding: 5px; border-radius: 5px; background: #111; }
-        .stat-val { display: block; font-size: 0.8rem; font-weight: bold; margin-top: 2px; }
-        .card { background: var(--surface); padding: 15px; margin: 10px; borderRadius: 8px; border-left: 4px solid var(--primary); position: relative; }
+        .filter-bar { display: flex; gap: 5px; overflow-x: auto; padding: 10px; background: #151515; }
+        .filter-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid #444; background: #222; color: #aaa; font-size: 0.65rem; white-space: nowrap; }
+        .filter-btn.active { background: var(--primary); color: black; border-color: var(--primary); }
+        .card { background: var(--surface); padding: 15px; margin: 10px; border-radius: 8px; border-left: 4px solid var(--primary); position: relative; }
         .size-tag { background: #333; padding: 3px 8px; border-radius: 4px; font-size: 0.7rem; margin-right: 5px; border: 1px solid #444; display: inline-block; margin-top: 5px; }
         .low-stock { color: var(--error); border-color: var(--error); font-weight: bold; }
-        .btn-del { position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--error); font-size: 1.2rem; padding: 5px; cursor: pointer; }
+        .btn-del { position: absolute; top: 10px; right: 10px; background: none; border: none; color: var(--error); font-size: 1.2rem; cursor: pointer; }
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; padding: 20px; overflow-y: auto; }
         input, select { width: 100%; padding: 12px; margin-top: 5px; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 8px; box-sizing: border-box; }
         .btn-main { width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; text-transform: uppercase; }
@@ -54,6 +54,8 @@
             const [inventory, setInventory] = useState([]);
             const [permitidos, setPermitidos] = useState([]);
             const [history, setHistory] = useState([]);
+            const [malls] = useState(["OITI", "GRAN SAM", "IMPERIO", "MINITIENDAS"]);
+            const [filterMall, setFilterMall] = useState('TODOS');
             const [showInvForm, setShowInvForm] = useState(false);
             const [showEditStock, setShowEditStock] = useState(null);
             const [sizesInput, setSizesInput] = useState([{ size: '', qty: '' }]);
@@ -61,23 +63,20 @@
             useEffect(() => {
                 db.collection("inventory").onSnapshot(s => setInventory(s.docs.map(d => ({id: d.id, ...d.data()}))));
                 db.collection("permitidos").onSnapshot(s => setPermitidos(s.docs.map(d => ({id: d.id, ...d.data()}))));
-                db.collection("history").orderBy("closedAt", "desc").limit(30).onSnapshot(s => setHistory(s.docs.map(d => d.data())));
+                db.collection("history").orderBy("closedAt", "desc").limit(50).onSnapshot(s => setHistory(s.docs.map(d => d.data())));
             }, []);
 
-            const deleteProduct = async (id) => {
-                if(confirm("¿Seguro que quieres borrar este producto de la bodega?")) {
-                    await db.collection("inventory").doc(id).delete();
+            const resolveStatus = async (item, status) => {
+                if (status === 'sold') {
+                    await db.collection("history").add({ ...item, status: 'sold', profit: (item.sellPrice - item.buyPrice) * item.qty, closedAt: new Date().toLocaleString() });
+                } else {
+                    const p = inventory.find(x => x.ref === item.ref && x.color === item.color);
+                    if(p) { const nS = {...p.sizes}; nS[item.size] = (nS[item.size] || 0) + item.qty; await db.collection("inventory").doc(p.id).update({ sizes: nS }); }
                 }
+                await db.collection("permitidos").doc(item.id).delete();
             };
 
-            const updateStock = async (e) => {
-                e.preventDefault();
-                const newSizes = {};
-                const formData = new FormData(e.target);
-                formData.forEach((val, key) => { if(key.startsWith('sz_')) newSizes[key.replace('sz_', '')] = parseInt(val) || 0; });
-                await db.collection("inventory").doc(showEditStock.id).update({ sizes: newSizes });
-                setShowEditStock(null);
-            };
+            const historyFiltered = filterMall === 'TODOS' ? history : history.filter(h => h.mall === filterMall);
 
             return (
                 <div>
@@ -85,24 +84,45 @@
                     <div className="nav">
                         <button className={`nav-btn ${tab === 'permitidos' ? 'active' : ''}`} onClick={() => setTab('permitidos')}>LOCALES</button>
                         <button className={`nav-btn ${tab === 'inventario' ? 'active' : ''}`} onClick={() => setTab('inventario')}>BODEGA</button>
+                        <button className={`nav-btn ${tab === 'historial' ? 'active' : ''}`} onClick={() => setTab('historial')}>HISTORIAL</button>
                     </div>
+
+                    {tab === 'permitidos' && (
+                        <div>
+                            {malls.map(m => {
+                                const items = permitidos.filter(p => p.mall === m);
+                                if(items.length === 0) return null;
+                                return (
+                                    <div key={m} className="card">
+                                        <div style={{color:'var(--primary)', fontWeight:'bold', marginBottom:10}}>📍 {m}</div>
+                                        {items.map(p => (
+                                            <div key={p.id} style={{borderBottom:'1px solid #333', padding:'10px 0'}}>
+                                                <b>{p.local}</b> - {p.name} ({p.size})
+                                                <div style={{display:'flex', marginTop:10}}>
+                                                    <button className="btn-status" style={{background:'var(--success)'}} onClick={() => resolveStatus(p, 'sold')}>VENDIDO</button>
+                                                    <button className="btn-status" style={{background:'var(--error)'}} onClick={() => resolveStatus(p, 'returned')}>DEVUELTO</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
 
                     {tab === 'inventario' && (
                         <div style={{padding:10}}>
                             <button className="btn-main" onClick={() => setShowInvForm(true)}>+ NUEVO PRODUCTO</button>
                             {inventory.map(p => (
                                 <div key={p.id} className="card">
-                                    <button className="btn-del" onClick={() => deleteProduct(p.id)}>🗑️</button>
+                                    <button className="btn-del" onClick={async () => {if(confirm("¿Borrar?")) await db.collection("inventory").doc(p.id).delete()}}>🗑️</button>
                                     <div onClick={() => setShowEditStock(p)}>
-                                        <div style={{display:'flex', justifyContent:'space-between', paddingRight:30}}>
-                                            <b>{p.name}</b> <span>{fCurrency(p.sellPrice)}</span>
-                                        </div>
+                                        <b>{p.name}</b> <span style={{float:'right'}}>{fCurrency(p.sellPrice)}</span><br/>
                                         <small>{p.color} | Ref: {p.ref}</small>
                                         <div style={{marginTop:8}}>
                                             {Object.entries(p.sizes).map(([s, q]) => (
                                                 <span key={s} className={`size-tag ${q <= 2 ? 'low-stock' : ''}`}>{s}: {q}</span>
                                             ))}
-                                            <div style={{fontSize:'0.6rem', color: 'var(--primary)', marginTop:5}}>✎ Toca para editar stock</div>
                                         </div>
                                     </div>
                                 </div>
@@ -110,22 +130,47 @@
                         </div>
                     )}
 
+                    {tab === 'historial' && (
+                        <div>
+                            <div className="filter-bar">
+                                <button className={`filter-btn ${filterMall === 'TODOS' ? 'active' : ''}`} onClick={() => setFilterMall('TODOS')}>TODOS</button>
+                                {malls.map(m => (
+                                    <button key={m} className={`filter-btn ${filterMall === m ? 'active' : ''}`} onClick={() => setFilterMall(m)}>{m}</button>
+                                ))}
+                            </div>
+                            <div style={{padding:10}}>
+                                {historyFiltered.map((h, i) => (
+                                    <div key={i} className="card" style={{borderLeftColor:'#25d366'}}>
+                                        <small style={{color:'#aaa'}}>{h.closedAt}</small><br/>
+                                        <strong>{h.name}</strong> ({h.size}) - {h.mall}<br/>
+                                        <span style={{color:'#25d366'}}>Ganancia: {fCurrency(h.profit)}</span>
+                                        <button className="btn-status" style={{background:'#25d366', marginTop:10, width:'100%'}} onClick={() => window.open(`https://wa.me/?text=*REPORTE VENTAS*%0A📍 ${h.mall}%0A📦 ${h.name}%0A📏 Talla: ${h.size}%0A💵 ${fCurrency(h.sellPrice)}`, '_blank')}>WHATSAPP</button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {showEditStock && (
                         <div className="modal">
                             <h3>Editar Stock: {showEditStock.name}</h3>
-                            <form onSubmit={updateStock}>
+                            <form onSubmit={async (e) => {
+                                e.preventDefault();
+                                const newS = {};
+                                new FormData(e.target).forEach((v, k) => { if(k.startsWith('sz_')) newS[k.replace('sz_', '')] = parseInt(v) || 0; });
+                                await db.collection("inventory").doc(showEditStock.id).update({ sizes: newS });
+                                setShowEditStock(null);
+                            }}>
                                 {Object.keys(showEditStock.sizes).map(s => (
-                                    <div key={s} style={{marginBottom:10}}>
-                                        <label>Talla {s}:</label>
-                                        <input name={`sz_${s}`} type="number" defaultValue={showEditStock.sizes[s]} />
-                                    </div>
+                                    <div key={s}><label>Talla {s}:</label><input name={`sz_${s}`} type="number" defaultValue={showEditStock.sizes[s]} /></div>
                                 ))}
-                                <button type="submit" className="btn-main">GUARDAR CAMBIOS</button>
+                                <button type="submit" className="btn-main">GUARDAR</button>
                                 <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowEditStock(null)}>CANCELAR</button>
                             </form>
                         </div>
                     )}
-
+                    
+                    {/* El modal de Nuevo Producto se mantiene igual al anterior */}
                     {showInvForm && (
                         <div className="modal">
                             <h3>Nuevo Producto</h3>
