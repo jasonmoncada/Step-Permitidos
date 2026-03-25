@@ -3,16 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Permitidos Pro - Cloud</title>
+    <title>Permitidos Pro - Cloud & Sync</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
     
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        :root { --primary: #d4af37; --bg: #0f0f0f; --surface: #1e1e1e; --success: #2e7d32; --error: #c62828; }
+        :root { --primary: #d4af37; --bg: #0f0f0f; --surface: #1e1e1e; --success: #2e7d32; --error: #c62828; --info: #0288d1; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; margin: 0; padding-bottom: 80px; }
         .header { background: var(--surface); padding: 15px; text-align: center; border-bottom: 2px solid var(--primary); }
         .header h1 { margin: 0; color: var(--primary); font-size: 1.2rem; letter-spacing: 2px; }
@@ -22,7 +21,6 @@
         .mall-group { margin: 10px; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
         .mall-header { background: #252525; padding: 10px; font-weight: bold; color: var(--primary); display: flex; justify-content: space-between; font-size: 0.9rem; }
         .permitido-card { background: var(--surface); padding: 12px; border-bottom: 1px solid #333; }
-        .permitido-card img { width: 100%; max-height: 250px; object-fit: cover; border-radius: 8px; margin: 10px 0; }
         .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 8px; background: #000; }
         .stat-box { text-align: center; font-size: 0.7rem; padding: 5px; border-radius: 5px; background: #111; }
         .fab { position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px; border-radius: 28px; background: var(--primary); border: none; font-size: 24px; z-index: 100; color: black; font-weight: bold;}
@@ -30,14 +28,16 @@
         label { display: block; margin-top: 12px; color: var(--primary); font-size: 0.8rem; }
         input, select { width: 100%; padding: 12px; margin-top: 5px; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 8px; box-sizing: border-box; }
         .btn-main { width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; }
-        .btn-status { flex: 1; padding: 10px; border: none; border-radius: 6px; color: white; font-weight: bold; margin: 5px; }
+        .btn-status { flex: 1; padding: 10px; border: none; border-radius: 6px; color: white; font-weight: bold; margin: 5px; font-size: 0.7rem; }
+        .btn-ws { background: #25d366; color: white; border: none; padding: 5px 10px; border-radius: 5px; font-size: 0.7rem; font-weight: bold; margin-top: 5px; display: inline-flex; align-items: center; gap: 5px; }
+        .notification-toast { position: fixed; top: 20px; left: 10px; right: 10px; background: var(--info); color: white; padding: 15px; border-radius: 10px; z-index: 2000; box-shadow: 0 5px 15px rgba(0,0,0,0.5); animation: slideDown 0.5sIn; }
+        @keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        // CONFIGURACIÓN OBTENIDA DE TU CAPTURA DE PANTALLA
         const firebaseConfig = {
           apiKey: "AIzaSyD0ndSzE5JvgsvVdcUJa9S9yR3X_VvY8-Y",
           authDomain: "permitidos-step.firebaseapp.com",
@@ -47,7 +47,6 @@
           appId: "1:790890287189:web:f4dcac6e46765790a98075"
         };
 
-        // Inicializar Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
 
@@ -62,20 +61,43 @@
             const [history, setHistory] = useState([]);
             const [malls, setMalls] = useState(["OITI", "GRAN SAM", "IMPERIO", "MINITIENDAS"]);
             const [loading, setLoading] = useState(true);
+            const [toast, setToast] = useState(null);
 
             useEffect(() => {
                 const unsubInv = db.collection("inventory").onSnapshot(snap => {
                     setInventory(snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
                 });
+                
+                // Escuchador de Permitidos con Notificación
                 const unsubPerm = db.collection("permitidos").onSnapshot(snap => {
                     setPermitidos(snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
                 });
-                const unsubHist = db.collection("history").orderBy("closedAt", "desc").limit(50).onSnapshot(snap => {
-                    setHistory(snap.docs.map(doc => doc.data()));
-                    setLoading(false);
+
+                // Escuchador de Historial (Notifica cuando se vende algo)
+                const unsubHist = db.collection("history").orderBy("closedAt", "desc").limit(1).onSnapshot(snap => {
+                    if (!snap.empty && !loading) {
+                        const lastSale = snap.docs[0].data();
+                        showNotification(`💰 ¡Venta Registrada! ${lastSale.ref} en ${lastSale.mall}`);
+                    }
+                    const allHist = [];
+                    db.collection("history").orderBy("closedAt", "desc").limit(50).get().then(s => {
+                        setHistory(s.docs.map(d => d.data()));
+                        setLoading(false);
+                    });
                 });
+
                 return () => { unsubInv(); unsubPerm(); unsubHist(); };
-            }, []);
+            }, [loading]);
+
+            const showNotification = (msg) => {
+                setToast(msg);
+                setTimeout(() => setToast(null), 4000);
+            };
+
+            const sendWhatsApp = (h) => {
+                const text = `*REPORTE DE VENTA - PERMITIDOS*%0A--------------------------%0A📍 *CC:* ${h.mall}%0A🏠 *Local:* ${h.local}%0A📦 *Producto:* ${h.ref}%0A🔢 *Cantidad:* ${h.qty}%0A💵 *Precio Venta:* $${h.sellPrice.toLocaleString()}%0A📈 *Ganancia:* $${h.profit.toLocaleString()}%0A📅 *Fecha:* ${h.closedAt}`;
+                window.open(`https://wa.me/?text=${text}`, '_blank');
+            };
 
             const addProduct = async (e) => {
                 e.preventDefault();
@@ -96,19 +118,11 @@
                 const prod = inventory.find(p => p.ref === f.ref.value);
                 
                 await db.collection("permitidos").add({
-                    mall: f.mall.value,
-                    local: f.local.value,
-                    ref: f.ref.value,
-                    qty,
-                    sellPrice: prod.sellPrice,
-                    buyPrice: prod.buyPrice,
+                    mall: f.mall.value, local: f.local.value, ref: f.ref.value,
+                    qty, sellPrice: prod.sellPrice, buyPrice: prod.buyPrice,
                     date: new Date().toLocaleDateString()
                 });
-
-                await db.collection("inventory").doc(prod.id).update({
-                    stock: prod.stock - qty
-                });
-
+                await db.collection("inventory").doc(prod.id).update({ stock: prod.stock - qty });
                 setShowAdd(false);
             };
 
@@ -116,25 +130,21 @@
                 if (status === 'sold') {
                     const profit = (item.sellPrice - item.buyPrice) * item.qty;
                     await db.collection("history").add({
-                        ...item,
-                        status: 'sold',
-                        profit,
-                        closedAt: new Date().toLocaleDateString()
+                        ...item, status: 'sold', profit, closedAt: new Date().toLocaleString()
                     });
                 } else {
                     const prod = inventory.find(p => p.ref === item.ref);
-                    await db.collection("inventory").doc(prod.id).update({
-                        stock: prod.stock + item.qty
-                    });
+                    await db.collection("inventory").doc(prod.id).update({ stock: prod.stock + item.qty });
                 }
                 await db.collection("permitidos").doc(item.id).delete();
             };
 
-            if(loading) return <div style={{padding:20, textAlign:'center'}}>Cargando nube de Google...</div>;
+            if(loading) return <div style={{padding:20, textAlign:'center'}}>Conectando con la nube...</div>;
 
             return (
                 <div>
-                    <div className="header"><h1>PERMITIDOS PRO ☁️</h1></div>
+                    {toast && <div className="notification-toast">{toast}</div>}
+                    <div className="header"><h1>PERMITIDOS SYNC ☁️</h1></div>
                     <div className="nav">
                         <button className={`nav-btn ${tab === 'permitidos' ? 'active' : ''}`} onClick={() => setTab('permitidos')}>PERMITIDOS</button>
                         <button className={`nav-btn ${tab === 'inventario' ? 'active' : ''}`} onClick={() => setTab('inventario')}>INVENTARIO</button>
@@ -142,9 +152,9 @@
                     </div>
 
                     <div className="stats-bar">
-                        <div className="stat-box">Calle: <br/><b>{permitidos.length} items</b></div>
-                        <div className="stat-box">Ganancia Hoy:<br/><b style={{color:'#4caf50'}}>${history.filter(h => h.closedAt === new Date().toLocaleDateString()).reduce((t, h) => t + h.profit, 0).toLocaleString()}</b></div>
-                        <div className="stat-box">Stock:<br/><b>{inventory.reduce((a,b)=>a+b.stock,0)} un.</b></div>
+                        <div className="stat-box">En locales: <br/><b>{permitidos.length}</b></div>
+                        <div className="stat-box">Ganancia Hoy:<br/><b style={{color:'#4caf50'}}>${history.filter(h => h.closedAt.includes(new Date().toLocaleDateString())).reduce((t, h) => t + h.profit, 0).toLocaleString()}</b></div>
+                        <div className="stat-box">Stock Bodega:<br/><b>{inventory.reduce((a,b)=>a+b.stock,0)}</b></div>
                     </div>
 
                     {tab === 'permitidos' && (
@@ -154,14 +164,14 @@
                                 if(items.length === 0) return null;
                                 return (
                                     <div key={m} className="mall-group">
-                                        <div className="mall-header">📍 {m} <span>{items.length} locales</span></div>
+                                        <div className="mall-header">📍 {m}</div>
                                         {items.map(p => (
                                             <div key={p.id} className="permitido-card">
                                                 <b>Local: {p.local}</b> - {p.qty} un. <br/>
                                                 <small>{p.ref} - ${p.sellPrice.toLocaleString()}</small>
                                                 <div style={{display:'flex', marginTop:10}}>
-                                                    <button className="btn-status" style={{background: 'var(--success)'}} onClick={() => resolveStatus(p, 'sold')}>VENDIDO</button>
-                                                    <button className="btn-status" style={{background: 'var(--error)'}} onClick={() => resolveStatus(p, 'returned')}>DEVUELTO</button>
+                                                    <button className="btn-status" style={{background: 'var(--success)'}} onClick={() => resolveStatus(p, 'sold')}>COBRAR VENTA</button>
+                                                    <button className="btn-status" style={{background: 'var(--error)'}} onClick={() => resolveStatus(p, 'returned')}>DEVOLUCIÓN</button>
                                                 </div>
                                             </div>
                                         ))}
@@ -173,11 +183,14 @@
 
                     {tab === 'inventario' && (
                         <div style={{padding:10}}>
-                            <button className="btn-main" onClick={() => setShowInvForm(true)}>+ NUEVA REFERENCIA</button>
+                            <button className="btn-main" onClick={() => setShowInvForm(true)}>+ NUEVO PRODUCTO</button>
                             {inventory.map(p => (
                                 <div key={p.id} style={{background: 'var(--surface)', padding:15, margin:'10px 0', borderRadius:8, display:'flex', justifyContent:'space-between'}}>
                                     <div><b>{p.ref}</b><br/><small>Stock: {p.stock}</small></div>
-                                    <div style={{color: 'var(--primary)'}}>${p.sellPrice.toLocaleString()}</div>
+                                    <div style={{textAlign:'right'}}>
+                                        <div style={{color: 'var(--primary)'}}>${p.sellPrice.toLocaleString()}</div>
+                                        <button onClick={async () => {const n = prompt("Nuevo stock:"); if(n) await db.collection("inventory").doc(p.id).update({stock: parseInt(n)})}} style={{fontSize:'0.6rem', background:'none', color:'#888', border:'1px solid #444', marginTop:5}}>EDITAR STOCK</button>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -185,12 +198,15 @@
 
                     {tab === 'cierre' && (
                         <div style={{padding:15}}>
-                            <h3>Ventas Cerradas</h3>
+                            <h3>Últimos Movimientos</h3>
                             {history.map((h, i) => (
-                                <div key={i} style={{background: '#222', padding: '10px', marginBottom: '8px', borderRadius: '8px', borderLeft: '4px solid #4caf50', fontSize:'0.8rem'}}>
-                                    <small>{h.closedAt}</small><br/>
-                                    <strong>{h.ref}</strong> en {h.mall} ({h.local})<br/>
-                                    Ganancia: <span style={{color: '#4caf50'}}>${h.profit.toLocaleString()}</span>
+                                <div key={i} style={{background: '#222', padding: '12px', marginBottom: '10px', borderRadius: '8px', borderLeft: '4px solid #25d366'}}>
+                                    <div style={{display:'flex', justifyContent:'space-between', fontSize:'0.7rem', color:'#aaa'}}>
+                                        <span>{h.closedAt}</span>
+                                        <span style={{color:'#4caf50', fontWeight:'bold'}}>+$ {h.profit.toLocaleString()}</span>
+                                    </div>
+                                    <div style={{margin:'5px 0'}}><strong>{h.ref}</strong> - {h.mall} ({h.local})</div>
+                                    <button className="btn-ws" onClick={() => sendWhatsApp(h)}>📱 ENVIAR REPORTE</button>
                                 </div>
                             ))}
                         </div>
@@ -204,26 +220,25 @@
                             <form onSubmit={deliverProduct}>
                                 <label>Centro Comercial:</label>
                                 <select name="mall">{malls.map(m => <option key={m} value={m}>{m}</option>)}</select>
-                                <button type="button" onClick={() => {const n = prompt("Nombre CC:"); if(n) setMalls([...malls, n.toUpperCase()])}} style={{fontSize: '0.7rem', background: 'none', color: 'var(--primary)', border: 'none', padding: '5px'}}>+ Crear nuevo CC</button>
-                                <label>Local:</label><input name="local" placeholder="Ej: 2-210" required />
+                                <label>Local:</label><input name="local" placeholder="Ej: Pasillo 2" required />
                                 <label>Producto:</label>
-                                <select name="ref">{inventory.map(i => <option key={i.ref} value={i.ref}>{i.ref} (Stock: {i.stock})</option>)}</select>
+                                <select name="ref">{inventory.map(i => <option key={i.ref} value={i.ref}>{i.ref} (Disp: {i.stock})</option>)}</select>
                                 <label>Cantidad:</label><input name="qty" type="number" defaultValue="1" required />
-                                <button type="submit" className="btn-main">GUARDAR EN LA NUBE</button>
-                                <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowAdd(false)}>CANCELAR</button>
+                                <button type="submit" className="btn-main">CONFIRMAR SALIDA</button>
+                                <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowAdd(false)}>CERRAR</button>
                             </form>
                         </div>
                     )}
 
                     {showInvForm && (
                         <div className="modal">
-                            <h3>Crear Referencia</h3>
+                            <h3>Nuevo Producto</h3>
                             <form onSubmit={addProduct}>
                                 <label>Referencia:</label><input name="ref" required />
-                                <label>Costo Compra:</label><input name="buyPrice" type="number" required />
+                                <label>Precio Compra (Costo):</label><input name="buyPrice" type="number" required />
                                 <label>Precio Venta:</label><input name="sellPrice" type="number" required />
                                 <label>Stock Inicial:</label><input name="stock" type="number" required />
-                                <button type="submit" className="btn-main">CREAR PRODUCTO</button>
+                                <button type="submit" className="btn-main">GUARDAR</button>
                                 <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowInvForm(false)}>CANCELAR</button>
                             </form>
                         </div>
@@ -231,10 +246,8 @@
                 </div>
             );
         }
-
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
 </body>
 </html>
-
