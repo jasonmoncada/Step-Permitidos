@@ -3,9 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Permitidos Pro - Control de Ventas</title>
-    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <title>Permitidos Pro - Cloud</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
+    
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         :root { --primary: #d4af37; --bg: #0f0f0f; --surface: #1e1e1e; --success: #2e7d32; --error: #c62828; }
@@ -18,98 +22,131 @@
         .mall-group { margin: 10px; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
         .mall-header { background: #252525; padding: 10px; font-weight: bold; color: var(--primary); display: flex; justify-content: space-between; font-size: 0.9rem; }
         .permitido-card { background: var(--surface); padding: 12px; border-bottom: 1px solid #333; }
-        .permitido-card img { width: 100%; height: auto; max-height: 200px; object-fit: cover; border-radius: 8px; margin: 10px 0; border: 1px solid #444; }
+        .permitido-card img { width: 100%; max-height: 250px; object-fit: cover; border-radius: 8px; margin: 10px 0; }
         .stats-bar { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; padding: 8px; background: #000; }
-        .stat-box { text-align: center; font-size: 0.7rem; padding: 5px; border-radius: 5px; background: #111; border: 1px solid #222; }
-        .fab { position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px; border-radius: 28px; background: var(--primary); border: none; font-size: 24px; color: black; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.5); }
+        .stat-box { text-align: center; font-size: 0.7rem; padding: 5px; border-radius: 5px; background: #111; }
+        .fab { position: fixed; bottom: 20px; right: 20px; width: 56px; height: 56px; border-radius: 28px; background: var(--primary); border: none; font-size: 24px; z-index: 100; color: black; font-weight: bold;}
         .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 1000; padding: 20px; overflow-y: auto; }
-        label { display: block; margin-top: 12px; color: var(--primary); font-size: 0.8rem; font-weight: bold; }
-        input, select { width: 100%; padding: 12px; margin-top: 5px; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
-        .btn-main { width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; font-size: 1rem; }
-        .btn-status { flex: 1; padding: 12px; border: none; border-radius: 6px; color: white; font-weight: bold; margin: 5px; font-size: 0.8rem; }
-        .inv-item { background: var(--surface); margin: 8px; padding: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #333; }
+        label { display: block; margin-top: 12px; color: var(--primary); font-size: 0.8rem; }
+        input, select { width: 100%; padding: 12px; margin-top: 5px; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 8px; box-sizing: border-box; }
+        .btn-main { width: 100%; padding: 15px; margin-top: 15px; border: none; border-radius: 8px; font-weight: bold; background: var(--primary); color: black; }
+        .btn-status { flex: 1; padding: 10px; border: none; border-radius: 6px; color: white; font-weight: bold; margin: 5px; }
     </style>
 </head>
 <body>
     <div id="root"></div>
+
     <script type="text/babel">
+        // CONFIGURACIÓN OBTENIDA DE TU CAPTURA DE PANTALLA
+        const firebaseConfig = {
+          apiKey: "AIzaSyD0ndSzE5JvgsvVdcUJa9S9yR3X_VvY8-Y",
+          authDomain: "permitidos-step.firebaseapp.com",
+          projectId: "permitidos-step",
+          storageBucket: "permitidos-step.firebasestorage.app",
+          messagingSenderId: "790890287189",
+          appId: "1:790890287189:web:f4dcac6e46765790a98075"
+        };
+
+        // Inicializar Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
         const { useState, useEffect } = React;
+
         function App() {
             const [tab, setTab] = useState('permitidos');
             const [showAdd, setShowAdd] = useState(false);
             const [showInvForm, setShowInvForm] = useState(false);
-            const [malls, setMalls] = useState(() => JSON.parse(localStorage.getItem('malls') || '["OITI", "GRAN SAM", "IMPERIO"]'));
-            const [inventory, setInventory] = useState(() => JSON.parse(localStorage.getItem('inventory') || '[]'));
-            const [permitidos, setPermitidos] = useState(() => JSON.parse(localStorage.getItem('permitidos') || '[]'));
-            const [history, setHistory] = useState(() => JSON.parse(localStorage.getItem('history') || '[]'));
-            const [tempPhoto, setTempPhoto] = useState(null);
+            const [inventory, setInventory] = useState([]);
+            const [permitidos, setPermitidos] = useState([]);
+            const [history, setHistory] = useState([]);
+            const [malls, setMalls] = useState(["OITI", "GRAN SAM", "IMPERIO", "MINITIENDAS"]);
+            const [loading, setLoading] = useState(true);
 
             useEffect(() => {
-                localStorage.setItem('malls', JSON.stringify(malls));
-                localStorage.setItem('inventory', JSON.stringify(inventory));
-                localStorage.setItem('permitidos', JSON.stringify(permitidos));
-                localStorage.setItem('history', JSON.stringify(history));
-            }, [malls, inventory, permitidos, history]);
+                const unsubInv = db.collection("inventory").onSnapshot(snap => {
+                    setInventory(snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
+                });
+                const unsubPerm = db.collection("permitidos").onSnapshot(snap => {
+                    setPermitidos(snap.docs.map(doc => ({id: doc.id, ...doc.data()})));
+                });
+                const unsubHist = db.collection("history").orderBy("closedAt", "desc").limit(50).onSnapshot(snap => {
+                    setHistory(snap.docs.map(doc => doc.data()));
+                    setLoading(false);
+                });
+                return () => { unsubInv(); unsubPerm(); unsubHist(); };
+            }, []);
 
-            const addProduct = (e) => {
+            const addProduct = async (e) => {
                 e.preventDefault();
                 const f = e.target;
-                const newProd = { ref: f.ref.value.toUpperCase(), buyPrice: parseFloat(f.buyPrice.value), sellPrice: parseFloat(f.sellPrice.value), stock: parseInt(f.stock.value) };
-                setInventory([...inventory, newProd]);
+                await db.collection("inventory").add({
+                    ref: f.ref.value.toUpperCase(),
+                    buyPrice: parseFloat(f.buyPrice.value),
+                    sellPrice: parseFloat(f.sellPrice.value),
+                    stock: parseInt(f.stock.value)
+                });
                 setShowInvForm(false);
-                f.reset();
             };
 
-            const updateStock = (ref, amount) => {
-                setInventory(inventory.map(p => p.ref === ref ? {...p, stock: p.stock + amount} : p));
-            };
-
-            const handlePhoto = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onloadend = () => setTempPhoto(reader.result);
-                reader.readAsDataURL(file);
-            };
-
-            const deliverProduct = (e) => {
+            const deliverProduct = async (e) => {
                 e.preventDefault();
                 const f = e.target;
                 const qty = parseInt(f.qty.value);
                 const prod = inventory.find(p => p.ref === f.ref.value);
-                if(!prod || prod.stock < qty) return alert("Stock insuficiente o producto no seleccionado");
-                const nuevo = { id: Date.now(), mall: f.mall.value, local: f.local.value, ref: f.ref.value, qty, sellPrice: prod.sellPrice, buyPrice: prod.buyPrice, photo: tempPhoto, status: 'pending', date: new Date().toLocaleDateString() };
-                updateStock(f.ref.value, -qty);
-                setPermitidos([nuevo, ...permitidos]);
+                
+                await db.collection("permitidos").add({
+                    mall: f.mall.value,
+                    local: f.local.value,
+                    ref: f.ref.value,
+                    qty,
+                    sellPrice: prod.sellPrice,
+                    buyPrice: prod.buyPrice,
+                    date: new Date().toLocaleDateString()
+                });
+
+                await db.collection("inventory").doc(prod.id).update({
+                    stock: prod.stock - qty
+                });
+
                 setShowAdd(false);
-                setTempPhoto(null);
             };
 
-            const resolveStatus = (id, status) => {
-                const item = permitidos.find(p => p.id === id);
-                if (status === 'returned') updateStock(item.ref, item.qty);
+            const resolveStatus = async (item, status) => {
                 if (status === 'sold') {
                     const profit = (item.sellPrice - item.buyPrice) * item.qty;
-                    setHistory([{...item, status: 'sold', profit, closedAt: new Date().toLocaleDateString()}, ...history]);
+                    await db.collection("history").add({
+                        ...item,
+                        status: 'sold',
+                        profit,
+                        closedAt: new Date().toLocaleDateString()
+                    });
+                } else {
+                    const prod = inventory.find(p => p.ref === item.ref);
+                    await db.collection("inventory").doc(prod.id).update({
+                        stock: prod.stock + item.qty
+                    });
                 }
-                setPermitidos(permitidos.filter(p => p.id !== id));
+                await db.collection("permitidos").doc(item.id).delete();
             };
 
-            const dailyProfit = history.filter(h => h.closedAt === new Date().toLocaleDateString()).reduce((t, h) => t + h.profit, 0);
+            if(loading) return <div style={{padding:20, textAlign:'center'}}>Cargando nube de Google...</div>;
 
             return (
                 <div>
-                    <div className="header"><h1>PERMITIDOS PRO</h1></div>
+                    <div className="header"><h1>PERMITIDOS PRO ☁️</h1></div>
                     <div className="nav">
                         <button className={`nav-btn ${tab === 'permitidos' ? 'active' : ''}`} onClick={() => setTab('permitidos')}>PERMITIDOS</button>
                         <button className={`nav-btn ${tab === 'inventario' ? 'active' : ''}`} onClick={() => setTab('inventario')}>INVENTARIO</button>
                         <button className={`nav-btn ${tab === 'cierre' ? 'active' : ''}`} onClick={() => setTab('cierre')}>HISTORIAL</button>
                     </div>
+
                     <div className="stats-bar">
                         <div className="stat-box">Calle: <br/><b>{permitidos.length} items</b></div>
-                        <div className="stat-box">Ganancia Hoy:<br/><b style={{color:'#4caf50'}}>${dailyProfit.toLocaleString()}</b></div>
+                        <div className="stat-box">Ganancia Hoy:<br/><b style={{color:'#4caf50'}}>${history.filter(h => h.closedAt === new Date().toLocaleDateString()).reduce((t, h) => t + h.profit, 0).toLocaleString()}</b></div>
                         <div className="stat-box">Stock:<br/><b>{inventory.reduce((a,b)=>a+b.stock,0)} un.</b></div>
                     </div>
+
                     {tab === 'permitidos' && (
                         <div>
                             {malls.map(m => {
@@ -117,15 +154,14 @@
                                 if(items.length === 0) return null;
                                 return (
                                     <div key={m} className="mall-group">
-                                        <div className="mall-header">📍 {m} <span>{items.length}</span></div>
+                                        <div className="mall-header">📍 {m} <span>{items.length} locales</span></div>
                                         {items.map(p => (
                                             <div key={p.id} className="permitido-card">
-                                                <div style={{display:'flex', justifyContent:'space-between'}}><b>Local: {p.local}</b><span>{p.qty} un.</span></div>
-                                                <div style={{fontSize: '0.8rem', color: '#aaa'}}>{p.ref} - ${p.sellPrice.toLocaleString()}</div>
-                                                {p.photo && <img src={p.photo} />}
-                                                <div style={{display:'flex', marginTop: '10px'}}>
-                                                    <button className="btn-status" style={{background: 'var(--success)'}} onClick={() => resolveStatus(p.id, 'sold')}>VENDIDO</button>
-                                                    <button className="btn-status" style={{background: 'var(--error)'}} onClick={() => resolveStatus(p.id, 'returned')}>DEVUELTO</button>
+                                                <b>Local: {p.local}</b> - {p.qty} un. <br/>
+                                                <small>{p.ref} - ${p.sellPrice.toLocaleString()}</small>
+                                                <div style={{display:'flex', marginTop:10}}>
+                                                    <button className="btn-status" style={{background: 'var(--success)'}} onClick={() => resolveStatus(p, 'sold')}>VENDIDO</button>
+                                                    <button className="btn-status" style={{background: 'var(--error)'}} onClick={() => resolveStatus(p, 'returned')}>DEVUELTO</button>
                                                 </div>
                                             </div>
                                         ))}
@@ -134,23 +170,21 @@
                             })}
                         </div>
                     )}
+
                     {tab === 'inventario' && (
-                        <div>
-                            <button className="btn-main" style={{width:'92%', margin: '10px 4%'}} onClick={() => setShowInvForm(true)}>+ NUEVA REFERENCIA</button>
+                        <div style={{padding:10}}>
+                            <button className="btn-main" onClick={() => setShowInvForm(true)}>+ NUEVA REFERENCIA</button>
                             {inventory.map(p => (
-                                <div key={p.ref} className="inv-item">
-                                    <div><strong>{p.ref}</strong><br/><small>Costo: ${p.buyPrice.toLocaleString()}</small></div>
-                                    <div style={{textAlign: 'right'}}>
-                                        <div style={{color: '#81d4fa', fontWeight:'bold'}}>${p.sellPrice.toLocaleString()}</div>
-                                        <div style={{fontSize: '1.1rem'}}>📦 {p.stock}</div>
-                                        <button onClick={() => {const a = parseInt(prompt("Cantidad a sumar:")); if(a) updateStock(p.ref, a)}} style={{background:'none', border:'1px solid var(--primary)', color:'var(--primary)', borderRadius:'4px', fontSize:'0.6rem'}}>+ STOCK</button>
-                                    </div>
+                                <div key={p.id} style={{background: 'var(--surface)', padding:15, margin:'10px 0', borderRadius:8, display:'flex', justifyContent:'space-between'}}>
+                                    <div><b>{p.ref}</b><br/><small>Stock: {p.stock}</small></div>
+                                    <div style={{color: 'var(--primary)'}}>${p.sellPrice.toLocaleString()}</div>
                                 </div>
                             ))}
                         </div>
                     )}
+
                     {tab === 'cierre' && (
-                        <div style={{padding: '15px'}}>
+                        <div style={{padding:15}}>
                             <h3>Ventas Cerradas</h3>
                             {history.map((h, i) => (
                                 <div key={i} style={{background: '#222', padding: '10px', marginBottom: '8px', borderRadius: '8px', borderLeft: '4px solid #4caf50', fontSize:'0.8rem'}}>
@@ -161,43 +195,46 @@
                             ))}
                         </div>
                     )}
+
                     <button className="fab" onClick={() => setShowAdd(true)}>+</button>
+
                     {showAdd && (
                         <div className="modal">
-                            <h3>Nueva Entrega</h3>
+                            <h3>Registrar Entrega</h3>
                             <form onSubmit={deliverProduct}>
                                 <label>Centro Comercial:</label>
                                 <select name="mall">{malls.map(m => <option key={m} value={m}>{m}</option>)}</select>
                                 <button type="button" onClick={() => {const n = prompt("Nombre CC:"); if(n) setMalls([...malls, n.toUpperCase()])}} style={{fontSize: '0.7rem', background: 'none', color: 'var(--primary)', border: 'none', padding: '5px'}}>+ Crear nuevo CC</button>
-                                <label>Local:</label><input name="local" placeholder="Ejem: 2-210" required />
+                                <label>Local:</label><input name="local" placeholder="Ej: 2-210" required />
                                 <label>Producto:</label>
-                                <select name="ref">{inventory.map(i => <option key={i.ref} value={i.ref}>{i.ref} (Disp: {i.stock})</option>)}</select>
+                                <select name="ref">{inventory.map(i => <option key={i.ref} value={i.ref}>{i.ref} (Stock: {i.stock})</option>)}</select>
                                 <label>Cantidad:</label><input name="qty" type="number" defaultValue="1" required />
-                                <label>Foto:</label><input type="file" accept="image/*" capture="camera" onChange={handlePhoto} />
-                                {tempPhoto && <img src={tempPhoto} style={{width: '100px', marginTop: '10px'}} />}
-                                <button type="submit" className="btn-main">CONFIRMAR SALIDA</button>
-                                <button type="button" className="btn-main" style={{background:'#444'}} onClick={() => {setShowAdd(false); setTempPhoto(null);}}>CANCELAR</button>
+                                <button type="submit" className="btn-main">GUARDAR EN LA NUBE</button>
+                                <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowAdd(false)}>CANCELAR</button>
                             </form>
                         </div>
                     )}
+
                     {showInvForm && (
                         <div className="modal">
-                            <h3>Crear Producto</h3>
+                            <h3>Crear Referencia</h3>
                             <form onSubmit={addProduct}>
-                                <label>Referencia:</label><input name="ref" placeholder="Ej: FAJA-001" required />
+                                <label>Referencia:</label><input name="ref" required />
                                 <label>Costo Compra:</label><input name="buyPrice" type="number" required />
                                 <label>Precio Venta:</label><input name="sellPrice" type="number" required />
                                 <label>Stock Inicial:</label><input name="stock" type="number" required />
-                                <button type="submit" className="btn-main">GUARDAR EN BODEGA</button>
-                                <button type="button" className="btn-main" style={{background:'#444'}} onClick={() => setShowInvForm(false)}>CANCELAR</button>
+                                <button type="submit" className="btn-main">CREAR PRODUCTO</button>
+                                <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowInvForm(false)}>CANCELAR</button>
                             </form>
                         </div>
                     )}
                 </div>
             );
         }
+
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
 </body>
 </html>
+
