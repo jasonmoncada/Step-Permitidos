@@ -12,8 +12,8 @@
     <style>
         :root { --primary: #d4af37; --bg: #0f0f0f; --surface: #1e1e1e; --success: #2e7d32; --error: #ff4444; }
         body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; margin: 0; padding-bottom: 80px; }
-        .header { background: var(--surface); padding: 15px; text-align: center; border-bottom: 2px solid var(--primary); display: flex; justify-content: center; align-items: center; gap: 10px; }
-        .header h1 { margin: 0; color: var(--primary); font-size: 1.1rem; letter-spacing: 2px; text-transform: uppercase; }
+        .header { background: var(--surface); padding: 15px; text-align: center; border-bottom: 2px solid var(--primary); display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; }
+        .header h1 { margin: 0; color: var(--primary); font-size: 1.1rem; letter-spacing: 2px; text-transform: uppercase; flex-grow: 1; }
         .nav { display: flex; background: var(--surface); position: sticky; top: 0; z-index: 10; border-bottom: 1px solid #333; }
         .nav-btn { flex: 1; padding: 12px; border: none; background: none; color: #888; font-weight: bold; font-size: 0.7rem; }
         .nav-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
@@ -71,10 +71,7 @@
                 db.collection("inventory").onSnapshot(s => setInventory(s.docs.map(d => ({id: d.id, ...d.data()}))));
                 db.collection("permitidos").onSnapshot(s => setPermitidos(s.docs.map(d => ({id: d.id, ...d.data()}))));
                 db.collection("history").orderBy("closedAt", "desc").limit(50).onSnapshot(s => setHistory(s.docs.map(d => d.data())));
-                db.collection("malls").onSnapshot(s => {
-                    const list = s.docs.map(d => ({id: d.id, ...d.data()}));
-                    setMalls(list.length > 0 ? list : []);
-                });
+                db.collection("malls").onSnapshot(s => setMalls(s.docs.map(d => ({id: d.id, ...d.data()}))));
             }, []);
 
             const resolveStatus = async (item, status) => {
@@ -97,8 +94,9 @@
             return (
                 <div>
                     <div className="header">
+                        <div style={{width: 30}}></div>
                         <h1>PERMITIDOS MONKA ☁️</h1>
-                        <button onClick={() => setShowMallMgmt(true)} style={{background:'none', border:'none', fontSize:'1.2rem'}}>⚙️</button>
+                        <button onClick={() => setShowMallMgmt(true)} style={{background:'none', border:'none', fontSize:'1.2rem', color:'var(--primary)', cursor:'pointer'}}>⚙️</button>
                     </div>
 
                     <div className="nav">
@@ -110,11 +108,12 @@
                     <div className="stats-bar">
                         <div className="stat-box">En locales<span className="stat-val">{permitidos.length}</span></div>
                         <div className="stat-box">Ganancia Hoy<span className="stat-val" style={{color:'#4caf50'}}>{fCurrency(gananciaHoy)}</span></div>
-                        <div className="stat-box">Stock Bodega<span className="stat-val">{inventory.reduce((a,b)=>a + Object.values(b.sizes).reduce((x,y)=>x+y,0),0)}</span></div>
+                        <div className="stat-box">Bodega<span className="stat-val">{inventory.reduce((a,b)=>a + Object.values(b.sizes).reduce((x,y)=>x+y,0),0)}</span></div>
                     </div>
 
                     {tab === 'permitidos' && (
                         <div>
+                            {malls.length === 0 && <p style={{textAlign:'center', marginTop:20, color:'#888'}}>Presiona ⚙️ para agregar Centros Comerciales</p>}
                             {malls.map(m => {
                                 const items = permitidos.filter(p => p.mall === m.name);
                                 if(items.length === 0) return null;
@@ -142,7 +141,7 @@
                             <button className="btn-main" onClick={() => setShowInvForm(true)}>+ NUEVO PRODUCTO</button>
                             {inventory.map(p => (
                                 <div key={p.id} className="card">
-                                    <button className="btn-del" onClick={async () => {if(confirm("¿Borrar de bodega?")) await db.collection("inventory").doc(p.id).delete()}}>🗑️</button>
+                                    <button className="btn-del" onClick={async () => {if(confirm("¿Borrar?")) await db.collection("inventory").doc(p.id).delete()}}>🗑️</button>
                                     <div onClick={() => setShowEditStock(p)}>
                                         <b>{p.name}</b> <span style={{float:'right', color:'var(--primary)'}}>{fCurrency(p.sellPrice)}</span><br/>
                                         <small>{p.color} | Ref: {p.ref}</small>
@@ -179,7 +178,6 @@
 
                     <button className="fab" onClick={() => setShowAddPermitido(true)}>+</button>
 
-                    {/* MODAL GESTIÓN CENTROS COMERCIALES */}
                     {showMallMgmt && (
                         <div className="modal">
                             <h3>Gestionar Centros Comerciales</h3>
@@ -189,7 +187,7 @@
                                 await db.collection("malls").add({ name });
                                 e.target.reset();
                             }}>
-                                <input name="mName" placeholder="Nombre (Ej: VENTURA)" required />
+                                <input name="mName" placeholder="Nombre (Ej: OITI)" required />
                                 <button type="submit" className="btn-main" style={{background:'var(--success)', color:'white'}}>AGREGAR CC</button>
                             </form>
                             <div style={{marginTop:20}}>
@@ -204,7 +202,6 @@
                         </div>
                     )}
 
-                    {/* MODAL ENTREGA A LOCAL */}
                     {showAddPermitido && (
                         <div className="modal">
                             <h3>Registrar Salida</h3>
@@ -226,7 +223,7 @@
                                 <select name="m" required>
                                     {malls.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                                 </select>
-                                <label>Local (Número/Nombre):</label><input name="l" required />
+                                <label>Local:</label><input name="l" required />
                                 <label>Producto:</label>
                                 <select name="pId" required onChange={(e) => {
                                     const p = inventory.find(i => i.id === e.target.value);
@@ -239,13 +236,12 @@
                                 <label>Talla:</label>
                                 <select name="sz">{(window.currentSizes || []).map(s => <option key={s} value={s}>{s}</option>)}</select>
                                 <label>Cantidad:</label><input name="q" type="number" defaultValue="1" required />
-                                <button type="submit" className="btn-main">CONFIRMAR SALIDA</button>
+                                <button type="submit" className="btn-main">ENTREGAR</button>
                                 <button type="button" className="btn-main" style={{background:'#444'}} onClick={()=>setShowAddPermitido(false)}>CANCELAR</button>
                             </form>
                         </div>
                     )}
 
-                    {/* RESTO DE MODALES (EDITAR STOCK Y NUEVO PRODUCTO) */}
                     {showEditStock && (
                         <div className="modal">
                             <h3>Editar Stock: {showEditStock.name}</h3>
@@ -267,7 +263,7 @@
 
                     {showInvForm && (
                         <div className="modal">
-                            <h3>Nuevo Producto en Bodega</h3>
+                            <h3>Nuevo Producto</h3>
                             <form onSubmit={async (e) => {
                                 e.preventDefault();
                                 const f = e.target;
@@ -277,4 +273,6 @@
                                     name: f.n.value.toUpperCase(), ref: f.r.value.toUpperCase(), color: f.c.value.toUpperCase(),
                                     buyPrice: parseFloat(f.bp.value), sellPrice: parseFloat(f.sp.value), sizes: sMap
                                 });
-                                setShowInvForm(false); setSizesInput([{s
+                                setShowInvForm(false); setSizesInput([{size:'', qty:''}]);
+                            }}>
+     
